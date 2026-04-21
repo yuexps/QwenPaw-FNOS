@@ -1,0 +1,13 @@
+#!/bin/bash
+
+### This script is called before the application is installed.
+### 执行安装前的准备工作
+
+# 加载公共函数库
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCRIPT_DIR}/common"
+
+# 调用公共函数
+install_init
+
+exit 0

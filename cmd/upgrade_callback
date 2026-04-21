@@ -1,0 +1,13 @@
+#!/bin/bash
+
+### This script is called after the application is upgraded.
+### 更新后处理：重新设置权限，清理临时文件
+
+# 加载公共函数库
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCRIPT_DIR}/common"
+
+# 调用公共函数
+upgrade_callback
+
+exit 0

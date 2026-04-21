@@ -1,0 +1,31 @@
+appname               = qwenpaw_yuexps
+version               = 26.4.21
+display_name          = QwenPaw
+desc                  = """
+<p>你的 AI 个人助理；安装极简、本地与云上均可部署；支持多端接入、能力轻松扩展。</p>
+<h3>核心能力：</h3>
+<ul>
+  <li><strong>由你掌控</strong> — 记忆与个性化完全由你掌控，支持本地或云端部署。无第三方托管，无数据上传。</li>
+  <li><strong>Skills 扩展</strong> — 内置定时任务、PDF/Office 处理、新闻摘要等；自定义技能自动加载，无绑定。通过 Skills 决定 QwenPaw 能做什么。</li>
+  <li><strong>多智能体协作</strong> — 创建多个独立智能体，各司其职；启用协作技能，智能体间互相通信共同完成复杂任务。</li>
+  <li><strong>多层安全防护</strong> — 工具防护、文件访问控制、技能安全扫描，保障运行安全。</li>
+  <li><strong>全域触达</strong> — 钉钉、飞书、微信、Discord、Telegram 等频道，一个 QwenPaw 按需连接。</li>
+</ul>
+<h3>你可以用 QwenPaw 做什么：</h3>
+<ul>
+  <li><strong>社交媒体</strong>：每日热帖摘要（小红书、知乎、Reddit），B 站/YouTube 新视频摘要。</li>
+  <li><strong>生产力</strong>：邮件与 Newsletter 精华推送到钉钉/飞书/QQ，邮件与日历整理联系人。</li>
+  <li><strong>创意与构建</strong>：睡前说明目标、自动执行，次日获得雏形；从选题到成片全流程。</li>
+  <li><strong>研究与学习</strong>：追踪科技与 AI 资讯，个人知识库检索复用。</li>
+  <li><strong>桌面与文件</strong>：整理与搜索本地文件、阅读与摘要文档，在会话中索要文件。</li>
+  <li><strong>探索更多</strong>：用 Skills 与定时任务组合成你自己的 agentic app。</li>
+</ul>
+"""
+arch                  = x86_64
+source                = thirdparty
+maintainer            = agentscope-ai
+maintainer_url        = https://github.com/agentscope-ai/QwenPaw
+distributor           = yuexps
+distributor_url       = https://github.com/yuexps/QwenPaw-FNOS
+desktop_uidir         = ui
+desktop_applaunchname = qwenpaw_yuexps.Application

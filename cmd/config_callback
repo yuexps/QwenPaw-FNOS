@@ -1,0 +1,13 @@
+#!/bin/bash
+
+### This script is called after the user change environment variables in application setting page.
+### 配置回调
+
+# 加载公共函数库
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCRIPT_DIR}/common"
+
+# 调用公共函数
+config_callback
+
+exit 0

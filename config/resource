@@ -1,0 +1,38 @@
+{
+    "data-share":
+    {
+        "shares":
+        [
+            {
+                "name": "qwenpaw_yuexps",
+                "permission":
+                {
+                    "rw":
+                    [
+                        "qwenpaw_yuexps"
+                    ]
+                }
+            },
+            {
+                "name": "qwenpaw_yuexps/log",
+                "permission":
+                {
+                    "rw":
+                    [
+                        "qwenpaw_yuexps"
+                    ]
+                }
+            },
+            {
+                "name": "qwenpaw_yuexps/data",
+                "permission":
+                {
+                    "rw":
+                    [
+                        "qwenpaw_yuexps"
+                    ]
+                }
+            }
+        ]
+    }
+}

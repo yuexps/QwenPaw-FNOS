@@ -1,0 +1,272 @@
+#!/bin/bash
+# 公共函数库(仿自FnDepot)
+# 所有 cmd 脚本共用的函数和变量
+
+# 应用信息
+APP_NAME="QwenPaw"
+LOG_FILE="${TRIM_PKGVAR}/info.log"
+PID_FILE="${TRIM_PKGVAR}/app.pid"
+
+# 路径
+QWENPAW_HOME="${TRIM_PKGVAR}/.qwenpaw" # QwenPaw 工作目录
+QWENPAW_VENV="${QWENPAW_HOME}/venv"  # Python 虚拟环境
+QWENPAW_SRC="${TRIM_APPDEST}/server" # QwenPaw 源码目录
+
+# 端口
+QWENPAW_PORT="${qwenpaw_webui_port}"
+
+# 环境变量
+export HOME="${TRIM_PKGVAR}/data"
+export PYTHONPATH="${QWENPAW_SRC}:${PYTHONPATH}"
+export WORKSPACE_DIR="${TRIM_PKGVAR}/data"
+export QWENPAW_WORKING_DIR="${TRIM_PKGVAR}/data/working"
+export QWENPAW_SECRET_DIR="${TRIM_PKGVAR}/data/working.secret"
+export QWENPAW_BACKUP_DIR="${TRIM_PKGVAR}/data/working.backups"
+export QWENPAW_AUTH_USERNAME="${qwenpaw_auth_username}"
+export QWENPAW_AUTH_PASSWORD="${qwenpaw_auth_password}"
+
+# 日志函数
+log_msg() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
+}
+
+err_msg() {
+    if [ -n "${TRIM_TEMP_LOGFILE}" ]; then
+        echo "$1" >> "${TRIM_TEMP_LOGFILE}"
+    fi
+    log_msg "ERROR: $1"
+}
+
+# 检查进程
+check_process() {
+    local pid=$1
+    if kill -0 "${pid}" 2>/dev/null; then
+        return 0 # process exist
+    else
+        return 1 # process not exist
+    fi
+}
+
+# 检查应用状态
+status() {
+    if [ -f "${PID_FILE}" ]; then
+        local pid=$(cat "${PID_FILE}")
+        if check_process "${pid}"; then
+            return 0 # 运行中
+        fi
+    fi
+    return 3 # 未运行
+}
+
+# 启动应用
+start_process() {
+    # 检查是否已经在运行
+    if [ -f "${PID_FILE}" ]; then
+        local pid=$(cat "${PID_FILE}")
+        if check_process "${pid}"; then
+            log_msg "${APP_NAME} 服务已在运行，PID: ${pid}"
+            return 0
+        fi
+    fi
+
+    log_msg "正在启动 ${APP_NAME} ..."
+
+    # Python 虚拟环境路径
+    local python="${QWENPAW_VENV}/bin/python3"
+    if [ ! -x "${python}" ]; then
+        err_msg "${APP_NAME} 启动失败：Python 虚拟环境不存在"
+        return 1
+    fi
+
+    # 启动QwenPaw服务
+    log_msg "启动 ${APP_NAME}，端口: ${QWENPAW_PORT}"
+    nohup "${python}" -m qwenpaw app --host 0.0.0.0 --port ${QWENPAW_PORT} \
+        >> "${LOG_FILE}" 2>&1 &
+    local app_pid=$!
+    echo ${app_pid} > "${PID_FILE}"
+
+    sleep 2
+    if check_process "${app_pid}"; then
+        log_msg "${APP_NAME} 启动成功，PID: ${app_pid}"
+        return 0
+    else
+        rm -f "${PID_FILE}"
+        err_msg "${APP_NAME} 启动失败，请查看日志: ${LOG_FILE}"
+        return 1
+    fi
+}
+
+# 停止应用
+stop_process() {
+    log_msg "正在停止 ${APP_NAME} 服务..."
+
+    # 检查 PID 文件是否存在
+    if [ -f "${PID_FILE}" ]; then
+        local pid=$(cat "${PID_FILE}")
+
+        if check_process "${pid}"; then
+            log_msg "停止 ${APP_NAME} 服务进程，PID: ${pid}"
+
+            # 发送 SIGTERM 信号
+            kill "${pid}" 2>/dev/null
+
+            # 等待进程结束（最多等待 10 秒）
+            local wait_count=0
+            while check_process "${pid}" && [ ${wait_count} -lt 20 ]; do
+                sleep 0.5
+                wait_count=$((wait_count + 1))
+            done
+
+            # 如果进程还在运行，强制终止
+            if check_process "${pid}"; then
+                log_msg "进程未响应，强制终止"
+                kill -9 "${pid}" 2>/dev/null
+            fi
+
+            log_msg "${APP_NAME} 服务已停止"
+        else
+            log_msg "${APP_NAME} 服务进程不存在"
+        fi
+
+        # 删除 PID 文件
+        rm -f "${PID_FILE}"
+    else
+        log_msg "PID 文件不存在，${APP_NAME} 服务可能未运行"
+    fi
+
+    return 0
+}
+
+# 安装前初始化
+install_init() {
+    log_msg "执行安装前的准备工作..."
+
+    # 确保日志目录存在
+    mkdir -p "$(dirname "${LOG_FILE}")"
+
+    # 校验端口是否被占用
+    if netstat -tuln 2>/dev/null | grep -q ":${QWENPAW_PORT} "; then
+        err_msg "Error: 端口 ${QWENPAW_PORT} 已被使用！"
+        return 1
+    fi
+
+    log_msg "安装前准备完成"
+    return 0
+}
+
+# 安装后回调
+install_callback() {
+    log_msg "执行安装后的初始化工作..."
+
+    # 创建 Python 虚拟环境（使用系统 Python）
+    log_msg "创建 Python 虚拟环境..."
+    local PYTHON_BIN="/usr/bin/python3"
+    if [ ! -x "${PYTHON_BIN}" ]; then
+        err_msg "未找到系统 Python（${PYTHON_BIN}）"
+        return 1
+    fi
+
+    log_msg "使用 Python: ${PYTHON_BIN} $("${PYTHON_BIN}" --version 2>&1)"
+
+    # 创建 venv
+    if [ ! -d "${QWENPAW_VENV}" ] || [ ! -x "${QWENPAW_VENV}/bin/python3" ]; then
+        log_msg "正在创建虚拟环境..."
+        ${PYTHON_BIN} -m venv "${QWENPAW_VENV}" >> "${LOG_FILE}" 2>&1
+        if [ ! -x "${QWENPAW_VENV}/bin/python3" ]; then
+            err_msg "Python 虚拟环境创建失败"
+            return 1
+        fi
+    else
+        log_msg "虚拟环境已存在，跳过创建"
+    fi
+    log_msg "Python 环境就绪: $("${QWENPAW_VENV}/bin/python3" --version)"
+
+    # 安装依赖
+    log_msg "安装 QwenPaw 依赖..."
+    local pip="${QWENPAW_VENV}/bin/pip"
+    
+    # 设置 Pip 缓存目录到持久化路径
+    export PIP_CACHE_DIR="${TRIM_PKGVAR}/.pip_cache"
+    mkdir -p "${PIP_CACHE_DIR}"
+
+    # 直接安装项目（依赖由 pyproject.toml 自动处理）
+    log_msg "正在安装项目并同步依赖..."
+    "${pip}" install --default-timeout=30 --retries 3 -e "${QWENPAW_SRC}" \
+        --index-url https://pypi.tuna.tsinghua.edu.cn/simple \
+        >> "${LOG_FILE}" 2>&1
+
+    if [ $? -ne 0 ]; then
+        err_msg "依赖安装失败，请检查网络连接或查看日志: ${LOG_FILE}"
+        return 1
+    fi
+    log_msg "依赖安装完成"
+
+    # 快速应用默认配置（仅在配置文件不存在时执行，避免覆盖用户自定义设置）
+    local config_file="${QWENPAW_WORKING_DIR}/config.json"
+    if [ ! -f "${config_file}" ]; then
+        log_msg "未检测到配置文件，正在初始化 ${APP_NAME} ..."
+        local python="${QWENPAW_VENV}/bin/python3"
+        mkdir -p "${QWENPAW_HOME}"
+        "${python}" -m qwenpaw init --defaults --accept-security >> "${LOG_FILE}" 2>&1
+        log_msg "${APP_NAME} 初始化完成"
+    else
+        log_msg "检测到现有配置，跳过初始化步骤"
+    fi
+
+    # 软链挂载
+    ln -sf "${TRIM_PKGVAR}/info.log" "/var/apps/qwenpaw_yuexps/shares/info.log" >> "${LOG_FILE}" 2>&1
+    ln -sf "${TRIM_PKGVAR}/data" "/var/apps/qwenpaw_yuexps/shares/data" >> "${LOG_FILE}" 2>&1
+
+    return 0
+}
+
+# 卸载前初始化
+uninstall_init() {
+    log_msg "执行卸载前的准备工作..."
+    # 停止应用
+    stop_process
+    log_msg "卸载前准备完成"
+    return 0
+}
+
+# 卸载后回调
+uninstall_callback() {
+    log_msg "执行卸载后的清理工作..."
+    # 清理 PID 文件
+    rm -f "${PID_FILE}"
+
+    # 根据用户选择删除数据
+    if [ "$qwenpaw_data_action" = "delete" ]; then
+        rm -rf ${TRIM_DATA_SHARE_PATHS%%:*}
+        rm -rf ${TRIM_PKGVAR}
+    fi
+
+    log_msg "卸载后清理完成"
+    return 0
+}
+
+# 升级前初始化
+upgrade_init() {
+    log_msg "执行升级前的准备工作..."
+    stop_process
+    log_msg "升级前准备完成"
+    return 0
+}
+
+# 升级后回调
+upgrade_callback() {
+    log_msg "执行升级后的处理工作..."
+    return 0
+}
+
+# 配置初始化
+config_init() {
+    log_msg "执行配置初始化..."
+    return 0
+}
+
+# 配置回调
+config_callback() {
+    log_msg "执行配置回调..."
+    return 0
+}

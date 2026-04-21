@@ -1,0 +1,13 @@
+#!/bin/bash
+
+### This script is called before the application is uninstalled.
+### 执行卸载前的准备工作
+
+# 加载公共函数库
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCRIPT_DIR}/common"
+
+# 调用公共函数
+uninstall_init
+
+exit 0

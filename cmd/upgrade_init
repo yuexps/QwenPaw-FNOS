@@ -1,0 +1,13 @@
+#!/bin/bash
+
+### This script is called before the application is upgraded.
+### 更新前准备：停止应用，防止更新时出错
+
+# 加载公共函数库
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCRIPT_DIR}/common"
+
+# 调用公共函数
+upgrade_init
+
+exit 0

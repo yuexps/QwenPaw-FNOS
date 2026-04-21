@@ -1,0 +1,13 @@
+#!/bin/bash
+
+### This script is called after the user uninstalls the application.
+### 清理所有配置文件和数据
+
+# 加载公共函数库
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "${SCRIPT_DIR}/common"
+
+# 调用公共函数
+uninstall_callback
+
+exit 0
