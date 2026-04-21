@@ -22,11 +22,12 @@ export WORKSPACE_DIR="${TRIM_PKGVAR}/data"
 export QWENPAW_WORKING_DIR="${TRIM_PKGVAR}/data/working"
 export QWENPAW_SECRET_DIR="${TRIM_PKGVAR}/data/working.secret"
 export QWENPAW_BACKUP_DIR="${TRIM_PKGVAR}/data/working.backups"
-export QWENPAW_AUTH_USERNAME="${qwenpaw_auth_username}"
-export QWENPAW_AUTH_PASSWORD="${qwenpaw_auth_password}"
+#export QWENPAW_AUTH_USERNAME="${qwenpaw_auth_username}"
+#export QWENPAW_AUTH_PASSWORD="${qwenpaw_auth_password}"
 
 # 日志函数
 log_msg() {
+    mkdir -p "$(dirname "${LOG_FILE}")"
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> ${LOG_FILE}
 }
 
@@ -35,6 +36,7 @@ err_msg() {
         echo "$1" >> "${TRIM_TEMP_LOGFILE}"
     fi
     log_msg "ERROR: $1"
+    exit 1
 }
 
 # 检查进程
@@ -80,7 +82,7 @@ start_process() {
 
     # 启动QwenPaw服务
     log_msg "启动 ${APP_NAME}，端口: ${QWENPAW_PORT}"
-    nohup "${python}" -m qwenpaw app --host 0.0.0.0 --port ${QWENPAW_PORT} \
+    nohup "${python}" -m qwenpaw app --host 127.0.0.1 --port ${QWENPAW_PORT} \
         >> "${LOG_FILE}" 2>&1 &
     local app_pid=$!
     echo ${app_pid} > "${PID_FILE}"
@@ -141,16 +143,12 @@ stop_process() {
 install_init() {
     log_msg "执行安装前的准备工作..."
 
-    # 确保日志目录存在
-    mkdir -p "$(dirname "${LOG_FILE}")"
-
     # 校验端口是否被占用
     if netstat -tuln 2>/dev/null | grep -q ":${QWENPAW_PORT} "; then
         err_msg "Error: 端口 ${QWENPAW_PORT} 已被使用！"
         return 1
     fi
 
-    log_msg "安装前准备完成"
     return 0
 }
 
@@ -214,8 +212,9 @@ install_callback() {
     fi
 
     # 软链挂载
-    ln -sf "${TRIM_PKGVAR}/info.log" "/var/apps/qwenpaw_yuexps/shares/info.log" >> "${LOG_FILE}" 2>&1
-    ln -sf "${TRIM_PKGVAR}/data" "/var/apps/qwenpaw_yuexps/shares/data" >> "${LOG_FILE}" 2>&1
+    log_msg "软链共享目录..."
+    ln -sf "/var/apps/qwenpaw_yuexps/shares/log/info.log" "${TRIM_PKGVAR}/info.log" >> "${LOG_FILE}" 2>&1
+    #ln -sf "/var/apps/qwenpaw_yuexps/shares/data" "${TRIM_PKGVAR}/data" >> "${LOG_FILE}" 2>&1
 
     return 0
 }
