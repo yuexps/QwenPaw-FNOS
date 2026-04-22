@@ -4,8 +4,24 @@
         "items": [
             {
                 "type": "text",
+                "field": "qwenpaw_webui_ip",
+                "label": "WebUI 监听IP",
+                "initValue": "127.0.0.1",
+                "rules": [
+                    {
+                        "required": true,
+                        "message": "请输入IP地址"
+                    },
+                    {
+                        "pattern": "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
+                        "message": "请输入有效的IPv4地址（如：192.168.31.254）"
+                    }
+                ]
+            },
+            {
+                "type": "text",
                 "field": "qwenpaw_webui_port",
-                "label": "WebUI端口",
+                "label": "WebUI 端口",
                 "initValue": "2277",
                 "rules": [
                     {
