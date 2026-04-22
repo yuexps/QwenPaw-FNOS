@@ -12,8 +12,7 @@ QWENPAW_HOME="${TRIM_PKGVAR}/.qwenpaw" # QwenPaw 工作目录
 QWENPAW_VENV="${QWENPAW_HOME}/venv"  # Python 虚拟环境
 QWENPAW_SRC="${TRIM_APPDEST}/server" # QwenPaw 源码目录
 
-# IP 端口
-QWENPAW_IP="${qwenpaw_webui_ip}"
+# 端口
 QWENPAW_PORT="${qwenpaw_webui_port}"
 
 # 环境变量
@@ -23,8 +22,9 @@ export WORKSPACE_DIR="${TRIM_PKGVAR}/data"
 export QWENPAW_WORKING_DIR="${TRIM_PKGVAR}/data/working"
 export QWENPAW_SECRET_DIR="${TRIM_PKGVAR}/data/working.secret"
 export QWENPAW_BACKUP_DIR="${TRIM_PKGVAR}/data/working.backups"
-#export QWENPAW_AUTH_USERNAME="${qwenpaw_auth_username}"
-#export QWENPAW_AUTH_PASSWORD="${qwenpaw_auth_password}"
+export QWENPAW_AUTH_ENABLED=true
+export QWENPAW_AUTH_USERNAME="${qwenpaw_auth_username}"
+export QWENPAW_AUTH_PASSWORD="${qwenpaw_auth_password}"
 
 # 日志函数
 log_msg() {
@@ -82,8 +82,8 @@ start_process() {
     fi
 
     # 启动QwenPaw服务
-    log_msg "启动 ${APP_NAME}，IP: ${QWENPAW_IP}, 端口: ${QWENPAW_PORT}"
-    nohup "${python}" -m qwenpaw app --host ${QWENPAW_IP} --port ${QWENPAW_PORT} \
+    log_msg "启动 ${APP_NAME}，端口: ${QWENPAW_PORT}"
+    nohup "${python}" -m qwenpaw app --host 0.0.0.0 --port ${QWENPAW_PORT} \
         >> "${LOG_FILE}" 2>&1 &
     local app_pid=$!
     echo ${app_pid} > "${PID_FILE}"

@@ -4,22 +4,6 @@
         "items": [
             {
                 "type": "text",
-                "field": "qwenpaw_webui_ip",
-                "label": "WebUI 监听IP",
-                "initValue": "127.0.0.1",
-                "rules": [
-                    {
-                        "required": true,
-                        "message": "请输入IP地址"
-                    },
-                    {
-                        "pattern": "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$",
-                        "message": "请输入有效的IPv4地址（如：192.168.31.254）"
-                    }
-                ]
-            },
-            {
-                "type": "text",
                 "field": "qwenpaw_webui_port",
                 "label": "WebUI 端口",
                 "initValue": "2277",
@@ -35,8 +19,46 @@
                 ]
             },
             {
-                "type": "tips",
-                "helpText": "<strong>警告：</strong> QwenPaw WebUI 暂无鉴权功能。如需公网访问，请自行反代并设置密码！"
+                "type": "text",
+                "field": "qwenpaw_auth_username",
+                "label": "设置用户名",
+                "rules": [
+                    {
+                        "required": true,
+                        "message": "请输入用户名"
+                    },
+                    {
+                        "pattern": "^[a-zA-Z0-9_]+$",
+                        "message": "用户名只能包含字母、数字和下划线"
+                    }
+                ]
+            },
+            {
+                "type": "password",
+                "field": "qwenpaw_auth_password",
+                "label": "设置密码",
+                "initValue": "admin",
+                "rules": [
+                    {
+                        "required": true,
+                        "message": "请输入密码"
+                    },
+                    {
+                        "min": 6,
+                        "message": "密码长度不能少于6位"
+                    }
+                ]
+            },
+            {
+                "type": "password",
+                "field": "qwenpaw_auth_password_confirm",
+                "label": "确认密码",
+                "rules": [
+                    {
+                        "required": true,
+                        "message": "请确认密码"
+                    }
+                ]
             }
         ]
     }
