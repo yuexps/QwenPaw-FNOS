@@ -8,8 +8,7 @@ LOG_FILE="${TRIM_PKGVAR}/info.log"
 PID_FILE="${TRIM_PKGVAR}/app.pid"
 
 # 路径
-QWENPAW_HOME="${TRIM_PKGVAR}/.qwenpaw" # QwenPaw 工作目录
-QWENPAW_VENV="${QWENPAW_HOME}/venv"  # Python 虚拟环境
+QWENPAW_VENV="${TRIM_PKGVAR}/venv"  # Python 虚拟环境
 QWENPAW_SRC="${TRIM_APPDEST}/server" # QwenPaw 源码目录
 
 # 端口
@@ -18,10 +17,7 @@ QWENPAW_PORT="${qwenpaw_webui_port}"
 # 环境变量
 export HOME="${TRIM_PKGVAR}/data"
 export PYTHONPATH="${QWENPAW_SRC}:${PYTHONPATH}"
-export WORKSPACE_DIR="${TRIM_PKGVAR}/data"
-export QWENPAW_WORKING_DIR="${TRIM_PKGVAR}/data/working"
-export QWENPAW_SECRET_DIR="${TRIM_PKGVAR}/data/working.secret"
-export QWENPAW_BACKUP_DIR="${TRIM_PKGVAR}/data/working.backups"
+export PIP_CACHE_DIR="${TRIM_PKGVAR}/.pip_cache"
 export QWENPAW_AUTH_ENABLED=true
 export QWENPAW_AUTH_USERNAME="${qwenpaw_auth_username}"
 export QWENPAW_AUTH_PASSWORD="${qwenpaw_auth_password}"
@@ -183,12 +179,9 @@ install_callback() {
     # 安装依赖
     log_msg "安装 QwenPaw 依赖..."
     local pip="${QWENPAW_VENV}/bin/pip"
-    
-    # 设置 Pip 缓存目录到持久化路径
-    export PIP_CACHE_DIR="${TRIM_PKGVAR}/.pip_cache"
     mkdir -p "${PIP_CACHE_DIR}"
 
-    # 直接安装项目（依赖由 pyproject.toml 自动处理）
+    # 安装项目并同步依赖
     log_msg "正在安装项目并同步依赖..."
     "${pip}" install --default-timeout=30 --retries 3 -e "${QWENPAW_SRC}" \
         --index-url https://pypi.tuna.tsinghua.edu.cn/simple \
@@ -200,12 +193,11 @@ install_callback() {
     fi
     log_msg "依赖安装完成"
 
-    # 快速应用默认配置（仅在配置文件不存在时执行，避免覆盖用户自定义设置）
+    # 快速应用默认配置
     local config_file="${QWENPAW_WORKING_DIR}/config.json"
     if [ ! -f "${config_file}" ]; then
         log_msg "未检测到配置文件，正在初始化 ${APP_NAME} ..."
         local python="${QWENPAW_VENV}/bin/python3"
-        mkdir -p "${QWENPAW_HOME}"
         "${python}" -m qwenpaw init --defaults --accept-security >> "${LOG_FILE}" 2>&1
         log_msg "${APP_NAME} 初始化完成"
     else
@@ -215,7 +207,7 @@ install_callback() {
     # 软链挂载
     log_msg "软链日志文件..."
     rm -rf "/var/apps/qwenpaw_yuexps/shares/qwenpaw_yuexps/info.log"
-    ln -sf "${TRIM_PKGVAR}/info.log" "/var/apps/qwenpaw_yuexps/shares/qwenpaw_yuexps/info.log" >> "${LOG_FILE}" 2>&1
+    ln -sf "${LOG_FILE}" "/var/apps/qwenpaw_yuexps/shares/qwenpaw_yuexps/info.log" >> "${LOG_FILE}" 2>&1
 
     return 0
 }
