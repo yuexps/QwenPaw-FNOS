@@ -17,6 +17,10 @@
                         "message": "端口号必须为1-65535之间的数字"
                     }
                 ]
+            },
+            {
+                "type": "tips",
+                "helpText": "<strong>警告：</strong> QwenPaw WebUI 暂无鉴权功能。如需公网访问，请自行反代并设置密码！"
             }
         ]
     }

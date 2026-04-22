@@ -212,9 +212,9 @@ install_callback() {
     fi
 
     # 软链挂载
-    log_msg "软链共享目录..."
-    ln -sf "/var/apps/qwenpaw_yuexps/shares/log/info.log" "${TRIM_PKGVAR}/info.log" >> "${LOG_FILE}" 2>&1
-    #ln -sf "/var/apps/qwenpaw_yuexps/shares/data" "${TRIM_PKGVAR}/data" >> "${LOG_FILE}" 2>&1
+    log_msg "软链日志文件..."
+    rm -rf "/var/apps/qwenpaw_yuexps/shares/qwenpaw_yuexps/info.log"
+    ln -sf "${TRIM_PKGVAR}/info.log" "/var/apps/qwenpaw_yuexps/shares/qwenpaw_yuexps/info.log" >> "${LOG_FILE}" 2>&1
 
     return 0
 }
