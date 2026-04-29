@@ -4,6 +4,11 @@ read_when:
   - Bootstrapping a workspace manually
 ---
 
+## Dependency Installation Specifications
+
+- Python: Use only virtual environments, e.g. `/var/apps/qwenpaw_yuexps/venv/bin/python3` and pip. QwenPaw runs inside this venv.
+- Node.js: No `-g`/`--global` installs. Only local project dependencies, all commands with strict environment isolation.
+
 ## Safety
 
 - Don't exfiltrate private data. Ever.
