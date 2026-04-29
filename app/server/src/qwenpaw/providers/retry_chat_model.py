@@ -46,6 +46,7 @@ from ..constant import (
     LLM_RATE_LIMIT_JITTER,
     LLM_RATE_LIMIT_PAUSE,
 )
+from .model_capability_cache import get_capability_cache
 from .rate_limiter import LLMRateLimiter, get_rate_limiter
 
 logger = logging.getLogger(__name__)
@@ -297,6 +298,13 @@ class RetryChatModel(ChatModelBase):
     def inner_class(self) -> type:
         return self._inner.__class__
 
+    @property
+    def model_key(self) -> str:
+        """Stable key for the underlying model: ``provider_id:model_name``."""
+        provider_id = getattr(self._inner, "_provider_id", None)
+        name = self._inner.model_name
+        return f"{provider_id}:{name}" if provider_id else name
+
     async def _consume_stream_with_slot(
         self,
         stream: AsyncGenerator[ChatResponse, None],
@@ -336,6 +344,12 @@ class RetryChatModel(ChatModelBase):
         *args: Any,
         **kwargs: Any,
     ) -> ChatResponse | AsyncGenerator[ChatResponse, None]:
+        cache = get_capability_cache()
+        key = self.model_key
+
+        if cache.get(key, "needs_reasoning_content", False):
+            _inject_reasoning_content(args, kwargs)
+
         limiter = await get_rate_limiter(
             max_concurrent=self._rate_limit_config.max_concurrent,
             max_qpm=self._rate_limit_config.max_qpm,
@@ -382,10 +396,11 @@ class RetryChatModel(ChatModelBase):
                         and _inject_reasoning_content(args, kwargs)
                     ):
                         raise
+                    cache.learn(key, "needs_reasoning_content", True)
                     logger.warning(
                         "Thinking-mode model requires reasoning_content "
                         "on every assistant message. Injecting empty "
-                        "values and retrying.",
+                        "values and retrying (learned for future calls).",
                     )
                     result = await self._inner(*args, **kwargs)
 
