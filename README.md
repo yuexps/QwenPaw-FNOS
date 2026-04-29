@@ -24,6 +24,8 @@
 >
 > **全域触达** — 钉钉、飞书、微信、Discord、Telegram 等频道，一个 QwenPaw 按需连接。
 >
+> **记忆进化与主动交互** — 智能体从交互中学习、反思经验、主动服务，越用越聪明。
+>
 > <details>
 > <summary><b>你可以用 QwenPaw 做什么</b></summary>
 >
@@ -38,10 +40,12 @@
 >
 > </details>
 
-## Resources
-QwenPaw 项目地址：https://github.com/agentscope-ai/QwenPaw
+---
 
-FNOS 文档地址：https://developer.fnnas.com/docs/guide
+## Resources
+QwenPaw: https://github.com/agentscope-ai/QwenPaw
+
+FNOS: https://developer.fnnas.com/docs/guide
 
 ## License
 本项沿用 Apache License 2.0 协议。

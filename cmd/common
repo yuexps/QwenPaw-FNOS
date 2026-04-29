@@ -18,9 +18,22 @@ QWENPAW_PORT="${qwenpaw_webui_port}"
 export HOME="${TRIM_PKGVAR}/data"
 export PYTHONPATH="${QWENPAW_SRC}:${PYTHONPATH}"
 export PIP_CACHE_DIR="${TRIM_PKGVAR}/.pip_cache"
+
+# QwenPaw 核心持久化路径
+export QWENPAW_WORKING_DIR="${TRIM_PKGVAR}/data"
+export QWENPAW_SECRET_DIR="${TRIM_PKGVAR}/data.secret"
+# AgentScope 运行时目录重定向
+export AS_RUNTIME_ROOT="${TRIM_PKGVAR}/agentscope-runtime"
+export AS_LOG_LEVEL=INFO
+
 export QWENPAW_AUTH_ENABLED=true
 export QWENPAW_AUTH_USERNAME="${qwenpaw_auth_username}"
 export QWENPAW_AUTH_PASSWORD="${qwenpaw_auth_password}"
+
+# Playwright 浏览器安装路径
+export PLAYWRIGHT_BROWSERS_PATH="${TRIM_PKGVAR}/ms-playwright"
+# Playwright 国内下载镜像
+export PLAYWRIGHT_DOWNLOAD_HOST="https://registry.npmmirror.com/-/binary/playwright"
 
 # 日志函数
 log_msg() {
@@ -153,6 +166,9 @@ install_init() {
 install_callback() {
     log_msg "执行安装后的初始化工作..."
 
+    # 确保持久化目录存在
+    mkdir -p "${QWENPAW_WORKING_DIR}" "${QWENPAW_SECRET_DIR}" "${AS_RUNTIME_ROOT}"
+
     # 创建 Python 虚拟环境（使用系统 Python）
     log_msg "创建 Python 虚拟环境..."
     local PYTHON_BIN="/usr/bin/python3"
@@ -192,6 +208,40 @@ install_callback() {
         return 1
     fi
     log_msg "依赖安装完成"
+
+    # 安装 Playwright 浏览器二进制文件
+    log_msg "正在安装 Playwright Chromium 浏览器..."
+
+    # 安装缺失的系统库
+    log_msg "检查并安装缺失的系统库..."
+    local MISSING_LIBS=""
+    for lib in libxcomposite1 libxdamage1 libxfixes3 libxrandr2; do
+        if ! dpkg -l | grep -q "^ii  $lib "; then
+            MISSING_LIBS="$MISSING_LIBS $lib"
+        fi
+    done
+
+    if [ -n "$MISSING_LIBS" ]; then
+        log_msg "发现缺失库: $MISSING_LIBS，尝试自动安装..."
+        apt-get update >> "${LOG_FILE}" 2>&1
+        apt-get install -y $MISSING_LIBS >> "${LOG_FILE}" 2>&1
+        if [ $? -eq 0 ]; then
+            log_msg "系统库安装成功"
+        else
+            log_msg "WARNING: 系统库安装失败，Playwright 部分功能可能受限。"
+        fi
+    else
+        log_msg "所有基础库已就绪"
+    fi
+
+    # 确保设置了浏览器路径
+    mkdir -p "${PLAYWRIGHT_BROWSERS_PATH}"
+    "${QWENPAW_VENV}/bin/playwright" install chromium >> "${LOG_FILE}" 2>&1
+    if [ $? -ne 0 ]; then
+        log_msg "WARNING: Playwright 浏览器安装失败，部分功能可能受限。请检查网络或稍后手动重试。"
+    else
+        log_msg "Playwright 浏览器安装完成"
+    fi
 
     # 快速应用默认配置
     local config_file="${QWENPAW_WORKING_DIR}/config.json"
