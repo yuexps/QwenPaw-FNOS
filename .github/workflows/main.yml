@@ -1,0 +1,101 @@
+name: Build QwenPaw FNOS
+
+on:
+  workflow_dispatch:
+
+env:
+  TZ: Asia/Shanghai
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Get latest official QwenPaw version
+        id: version
+        run: |
+          RELEASE=$(curl -s -H "Authorization: token ${GH_TOKEN}" https://api.github.com/repos/agentscope-ai/QwenPaw/releases/latest )
+          LATEST=$(echo "$RELEASE" | jq -r '.tag_name' | sed 's/^v//')
+          echo "version=$LATEST" >> $GITHUB_OUTPUT
+          echo "Latest QwenPaw version: $LATEST"
+
+      - name: Download official QwenPaw
+        run: |
+          mkdir -p temp
+          wget "https://github.com/agentscope-ai/QwenPaw/archive/refs/tags/v${{ steps.version.outputs.version }}.zip" -O temp/QwenPaw.zip
+          unzip temp/QwenPaw.zip -d temp
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: 'npm'
+          cache-dependency-path: temp/QwenPaw-*/console/package-lock.json
+
+      - name: Build frontend console
+        run: |
+          cd temp/QwenPaw-*/console
+          npm ci
+          npm run build
+
+      - name: Copy console dist to src
+        run: |
+          cd temp/QwenPaw-*/
+          rm -rf src/qwenpaw/console
+          mkdir -p src/qwenpaw/console
+          cp -R console/dist/. src/qwenpaw/console/
+
+      - name: Copy src to /app/server
+        run: |
+          rm -rf app/server/src
+          mkdir -p app/server/src
+          cp -r temp/QwenPaw-*/src app/server/
+          cp -f temp/QwenPaw-*/README.md app/server/
+          cp -f temp/QwenPaw-*/pyproject.toml app/server/
+          cp -f temp/QwenPaw-*/setup.py app/server/
+
+      - name: Update manifest
+        run: |
+          VERSION=$(date +%y.%-m.%-d)
+          CHANGELOG="更新 QwenPaw 到 v${{ steps.version.outputs.version }} 版本"
+          sed -i "s/^version\s*=.*/version               = ${VERSION}/" manifest
+          sed -i "s|^changelog\s*=.*|changelog             = ${CHANGELOG}|" manifest
+          echo "Updated manifest:"
+          grep -E "^version|^changelog" manifest
+
+      - name: Install fnpack
+        run: |
+          chmod +x build/fnpack-1.2.1-linux-amd64
+          sudo cp build/fnpack-1.2.1-linux-amd64 /usr/local/bin/fnpack
+          
+      - name: Build fpk package
+        id: build
+        run: |
+          fnpack build
+          FPK_FILE=$(ls *.fpk | head -n 1)
+          echo "fpk_file=${FPK_FILE}" >> $GITHUB_OUTPUT
+          echo "FPK package built: ${FPK_FILE}"
+          
+      - name: Upload fpk artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: QwenPaw-${{ steps.version.outputs.version }}
+          path: ${{ steps.build.outputs.fpk_file }}
+          retention-days: 30
+
+      - name: Commit and push
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add app/server/ manifest
+          git commit -m "更新 QwenPaw 到 v${{ steps.version.outputs.version }} 版本" || exit 0
+          git push
