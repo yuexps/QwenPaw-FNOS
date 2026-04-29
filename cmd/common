@@ -185,10 +185,13 @@ install_callback() {
     local pip="${QWENPAW_VENV}/bin/pip"
     mkdir -p "${PIP_CACHE_DIR}"
 
+    # 设置国内镜像源
+    "${pip}" config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple/
+    "${pip}" config set global.extra-index-url https://mirrors.aliyun.com/pypi/simple/
+
     # 安装项目并同步依赖
     log_msg "正在安装项目并同步依赖..."
     "${pip}" install --default-timeout=30 --retries 3 -e "${QWENPAW_SRC}" \
-        --index-url https://pypi.tuna.tsinghua.edu.cn/simple \
         >> "${LOG_FILE}" 2>&1
 
     if [ $? -ne 0 ]; then
