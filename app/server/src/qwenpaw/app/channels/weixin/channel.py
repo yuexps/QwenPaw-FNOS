@@ -45,7 +45,7 @@ from ..base import (
     OutgoingContentPart,
     ProcessHandler,
 )
-from ..utils import split_text
+from ..utils import file_url_to_local_path, split_text
 from .client import ILinkClient, _DEFAULT_BASE_URL
 
 logger = logging.getLogger(__name__)
@@ -974,7 +974,18 @@ class WeixinChannel(BaseChannel):
         if not _client or not to_user_id or not text:
             return
         try:
-            await _client.send_text(to_user_id, text, context_token)
+            resp = await _client.send_text(to_user_id, text, context_token)
+            if isinstance(resp, dict):
+                ret = resp.get("ret", 0)
+                errcode = resp.get("errcode", 0)
+                if ret != 0 or errcode != 0:
+                    logger.warning(
+                        "weixin send_text rejected: "
+                        "ret=%s errcode=%s to_user_id=%s",
+                        ret,
+                        errcode,
+                        to_user_id,
+                    )
         except Exception:
             logger.exception("weixin _send_text_direct failed")
 
@@ -1001,8 +1012,7 @@ class WeixinChannel(BaseChannel):
 
         try:
             # Convert URL to local path if it's a file:// URL
-            if file_path.startswith("file://"):
-                file_path = file_path[7:]
+            file_path = file_url_to_local_path(file_path) or file_path
 
             # Check if file exists
             path_obj = Path(file_path)
