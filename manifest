@@ -30,4 +30,4 @@ distributor           = yuexps
 distributor_url       = https://github.com/yuexps/QwenPaw-FNOS
 desktop_uidir         = ui
 desktop_applaunchname = qwenpaw_yuexps.Application
-changelog             = 更新 QwenPaw 到 v1.1.5 版本
+changelog             = 更新 QwenPaw 到 v1.1.5 版本 ，记忆搜索优化；上下文压缩降级机制；ACP Agent 重命名与删除；QQ 语音与 ASR 支持。
