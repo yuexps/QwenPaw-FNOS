@@ -1,5 +1,5 @@
 appname               = qwenpaw_yuexps
-version               = 26.4.29
+version               = 26.4.30
 display_name          = QwenPaw
 desc                  = """
 <p>你的 AI 个人助理；安装极简、本地与云上均可部署；支持多端接入、能力轻松扩展。</p>
@@ -30,4 +30,5 @@ distributor           = yuexps
 distributor_url       = https://github.com/yuexps/QwenPaw-FNOS
 desktop_uidir         = ui
 desktop_applaunchname = qwenpaw_yuexps.Application
+install_dep_apps      = Chrome-for-Testing-yuexps:nodejs_v22
 changelog             = 更新 QwenPaw 到 v1.1.5 版本 ，记忆搜索优化；上下文压缩降级机制；ACP Agent 重命名与删除；QQ 语音与 ASR 支持。
