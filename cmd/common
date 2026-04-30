@@ -22,9 +22,12 @@ export QWENPAW_AUTH_ENABLED=true
 export QWENPAW_AUTH_USERNAME="${qwenpaw_auth_username}"
 export QWENPAW_AUTH_PASSWORD="${qwenpaw_auth_password}"
 
+# Node.js (可选)
+export PATH="/var/apps/nodejs_v22/target/bin:$PATH"
+
 # Playwright 浏览器(FnDepot安装Chrome-for-Testing-yuexps)
 export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="/var/apps/Chrome-for-Testing-yuexps/target/chrome"
+export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="/var/apps/Chrome-for-Testing-yuexps/target/chrome-headless-shell"
 
 # 日志函数
 log_msg() {
