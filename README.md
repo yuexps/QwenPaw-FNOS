@@ -45,13 +45,13 @@
 ## 建议添加
 ```
 ## 依赖安装规范
-- Python 仅使用虚拟环境，如`/var/apps/qwenpaw_yuexps/venv/bin/python3 与 pip`，QwenPaw本体已在此虚拟环境内。
+- Python 仅使用虚拟环境，如`/var/apps/qwenpaw_yuexps/var/venv/bin/python3 与 pip`，QwenPaw本体已在此虚拟环境内。
 - Node.js 严禁 -g/--global，只允许项目本地安装，所有命令严格遵循环境隔离。
 
 ---
 
 ## Dependency Installation Specifications
-- Python: Use only virtual environments, e.g. `/var/apps/qwenpaw_yuexps/venv/bin/python3` and pip. QwenPaw runs inside this venv.
+- Python: Use only virtual environments, e.g. `/var/apps/qwenpaw_yuexps/var/venv/bin/python3` and pip. QwenPaw runs inside this venv.
 - Node.js: No `-g`/`--global` installs. Only local project dependencies, all commands with strict environment isolation.
 ```
 

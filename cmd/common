@@ -24,6 +24,8 @@ export QWENPAW_AUTH_PASSWORD="${qwenpaw_auth_password}"
 
 # Node.js (可选)
 export PATH="/var/apps/nodejs_v22/target/bin:$PATH"
+export npm_config_cache="${TRIM_PKGVAR}/.npm-cache"
+export npm_config_tmp="${TRIM_PKGVAR}/.npm-tmp"
 
 # Playwright 浏览器(FnDepot安装Chrome-for-Testing-yuexps)
 export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
