@@ -4,11 +4,6 @@ read_when:
   - 手动引导工作区
 ---
 
-## 依赖安装规范
-
-- Python 仅使用虚拟环境，如`/var/apps/qwenpaw_yuexps/venv/bin/python3 与 pip`，QwenPaw本体已在此虚拟环境内。
-- Node.js 严禁 -g/--global，只允许项目本地安装，所有命令严格遵循环境隔离。
-
 ## 安全
 
 - 绝不泄露私密数据。绝不。

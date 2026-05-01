@@ -1,5 +1,5 @@
 appname               = qwenpaw_yuexps
-version               = 26.4.30
+version               = 26.5.1
 display_name          = QwenPaw
 desc                  = """
 你的 AI 个人助理；安装极简、本地与云上均可部署；支持多端接入、能力轻松扩展。<br><br>
@@ -22,4 +22,4 @@ distributor           = yuexps
 distributor_url       = https://github.com/yuexps/QwenPaw-FNOS
 desktop_uidir         = ui
 desktop_applaunchname = qwenpaw_yuexps.Application
-changelog             = 更新 QwenPaw 到 v1.1.5 版本 ，记忆搜索优化；上下文压缩降级机制；ACP Agent 重命名与删除；QQ 语音与 ASR 支持。
+changelog             = 更新 QwenPaw 到 v1.1.5.post1 版本
