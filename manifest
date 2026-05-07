@@ -14,7 +14,7 @@ Skills 扩展 — 内置定时任务、PDF/Office 处理、新闻摘要等；自
 Chrome-for-Testing-yuexps — 浏览器控制，网页浏览、截图等技能<br>
 Node.js v22 — 部分技能执行环境，支持 Node.js 类型技能<br>
 """
-arch                  = x86_64
+platform              = x86
 source                = thirdparty
 maintainer            = agentscope-ai
 maintainer_url        = https://github.com/agentscope-ai/QwenPaw
