@@ -42,7 +42,7 @@
 
 ---
 
-## 建议添加
+## AGENTS.md 建议添加
 ```
 ## 依赖安装规范
 - Python 仅使用虚拟环境，如`/var/apps/qwenpaw_yuexps/var/venv/bin/python3 与 pip`，QwenPaw本体已在此虚拟环境内。
