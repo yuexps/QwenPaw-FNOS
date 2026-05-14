@@ -65,6 +65,7 @@ include-package-data = true
     "security/tool_guard/rules/**",
     "security/skill_scanner/rules/**",
     "security/skill_scanner/data/**",
+    "website/public/docs/*.md",
 ]
 
 [build-system]
@@ -90,6 +91,9 @@ dev = [
 ]
 local = [
     "huggingface_hub>=0.20.0",
+]
+adbpg = [
+    "psycopg2-binary==2.9.10",
 ]
 whisper = [
     "openai-whisper>=20231117",

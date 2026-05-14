@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Coroutine
 
@@ -368,6 +370,18 @@ class AgentRunner(Runner):
             if not isinstance(channel_meta, dict):
                 channel_meta = {}
             user_name = channel_meta.get("user_name")
+
+            # Load agent-specific configuration
+            agent_config = load_agent_config(self.agent_id)
+
+            _configured_shell = (
+                agent_config.running.shell_command_executable or None
+            )
+            _default_shell = (
+                _configured_shell
+                or os.environ.get("SHELL")
+                or ("cmd.exe" if sys.platform == "win32" else "/bin/sh")
+            )
             env_context = build_env_context(
                 session_id=session_id,
                 user_id=user_id,
@@ -378,15 +392,13 @@ class AgentRunner(Runner):
                     if self.workspace_dir
                     else str(WORKING_DIR)
                 ),
+                default_shell=_default_shell,
             )
 
             # Get MCP clients from manager (hot-reloadable)
             mcp_clients = []
             if self._mcp_manager is not None:
                 mcp_clients = await self._mcp_manager.get_clients()
-
-            # Load agent-specific configuration
-            agent_config = load_agent_config(self.agent_id)
 
             logger.debug(f"Enabled MCP: {mcp_clients}")
 
@@ -396,7 +408,11 @@ class AgentRunner(Runner):
                 "user_id": user_id,
                 "channel": channel,
                 "agent_id": self.agent_id,
+                "root_agent_id": self.agent_id,
             }
+            payload_context = getattr(request, "request_context", None)
+            if isinstance(payload_context, dict):
+                base_request_context.update(payload_context)
 
             # Extract root_session_id from request payload (agent chat)
             payload_root_session = getattr(request, "root_session_id", "")
