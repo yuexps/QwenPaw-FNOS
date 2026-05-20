@@ -874,7 +874,7 @@ PROVIDER_ANTHROPIC = AnthropicProvider(
     api_key_prefix="sk-ant-",
     models=ANTHROPIC_MODELS,
     chat_model="AnthropicChatModel",
-    freeze_url=True,
+    freeze_url=False,
 )
 
 PROVIDER_GEMINI = GeminiProvider(
@@ -1501,6 +1501,35 @@ class ProviderManager:  # pylint: disable=too-many-public-methods
         except OSError:
             pass
 
+    def save_provider_config(
+        self,
+        provider_id: str,
+        provider: Provider | None = None,
+    ) -> None:
+        """Persist the current in-memory provider state to disk.
+
+        Args:
+            provider_id: The provider to save.
+            provider: Optional pre-resolved provider instance. When
+                supplied, this instance is saved directly — important
+                for plugin providers where ``get_provider`` returns a
+                fresh copy each time.
+        """
+        if provider is None:
+            provider = self.get_provider(provider_id)
+        if provider is None:
+            return
+        is_plugin = provider_id in self.plugin_providers
+        if is_plugin:
+            provider_info = ProviderInfo(**provider.model_dump())
+            self.plugin_providers[provider_id]["info"] = provider_info
+            self._save_plugin_provider(provider)
+        else:
+            self._save_provider(
+                provider,
+                is_builtin=provider_id in self.builtin_providers,
+            )
+
     def load_provider(
         self,
         provider_id: str,
@@ -1756,6 +1785,7 @@ class ProviderManager:  # pylint: disable=too-many-public-methods
     def _init_from_storage(self):
         """Initialize all providers and active model from disk storage."""
         # Load built-in providers
+        # pylint: disable=too-many-nested-blocks
         for builtin in self.builtin_providers.values():
             provider = self.load_provider(builtin.id, is_builtin=True)
             if provider:
@@ -1763,6 +1793,10 @@ class ProviderManager:  # pylint: disable=too-many-public-methods
                 if not builtin.freeze_url:
                     builtin.base_url = provider.base_url
                 builtin.api_key = provider.api_key
+                if provider.auth_mode != "api_key":
+                    builtin.auth_mode = provider.auth_mode
+                if provider.custom_headers:
+                    builtin.custom_headers = provider.custom_headers
                 builtin_model_ids = {m.id for m in builtin.models}
                 builtin.extra_models = [
                     m
@@ -1770,26 +1804,39 @@ class ProviderManager:  # pylint: disable=too-many-public-methods
                     if m.id not in builtin_model_ids
                 ]
                 builtin.generate_kwargs.update(provider.generate_kwargs)
-                # Restore per-model generate_kwargs for built-in models.
+                # Restore per-model config for built-in models.
                 # Collect from both stored built-in models and promoted
                 # extra_models (models that were user-added but are now
                 # part of the built-in list).
-                stored_model_kwargs: dict = {}
+                stored_model_config: dict = {}
                 for m in provider.models:
-                    if m.generate_kwargs:
-                        stored_model_kwargs[m.id] = m.generate_kwargs
+                    stored_model_config[m.id] = {
+                        "generate_kwargs": m.generate_kwargs,
+                        "max_tokens": m.max_tokens,
+                        "max_input_length": m.max_input_length,
+                    }
                 for m in provider.extra_models:
-                    if m.id in builtin_model_ids and m.generate_kwargs:
-                        stored_model_kwargs.setdefault(
+                    if m.id in builtin_model_ids:
+                        stored_model_config.setdefault(
                             m.id,
-                            m.generate_kwargs,
+                            {
+                                "generate_kwargs": m.generate_kwargs,
+                                "max_tokens": m.max_tokens,
+                                "max_input_length": m.max_input_length,
+                            },
                         )
-                if stored_model_kwargs:
+                if stored_model_config:
                     for model in builtin.models:
-                        if model.id in stored_model_kwargs:
-                            model.generate_kwargs = stored_model_kwargs[
-                                model.id
-                            ]
+                        cfg = stored_model_config.get(model.id)
+                        if cfg:
+                            if cfg["generate_kwargs"]:
+                                model.generate_kwargs = cfg["generate_kwargs"]
+                            if cfg["max_tokens"] is not None:
+                                model.max_tokens = cfg["max_tokens"]
+                            if cfg["max_input_length"] is not None:
+                                model.max_input_length = cfg[
+                                    "max_input_length"
+                                ]
         # Load custom providers
         for provider_file in self.custom_path.glob("*.json"):
             provider = self.load_provider(provider_file.stem, is_builtin=False)

@@ -213,7 +213,7 @@ agent_app = AgentApp(
     runner=runner,
     enable_stream_task=True,
     stream_task_queue="stream_query",
-    stream_task_timeout=300,
+    stream_task_timeout=1800,
 )
 
 
@@ -532,6 +532,14 @@ async def lifespan(  # pylint: disable=too-many-statements,too-many-branches
             await token_usage_manager.stop()
         except Exception as e:
             logger.error(f"Error stopping TokenUsageManager: {e}")
+
+        # Stop all browser instances
+        from ..agents.tools.browser_control import stop_all_browsers
+
+        try:
+            await stop_all_browsers()
+        except Exception as e:
+            logger.error(f"Error stopping browsers during shutdown: {e}")
 
         logger.info("Application shutdown complete")
 
