@@ -121,11 +121,14 @@ jobs:
           cd temp_fndepot
           
           VERSION="${{ steps.manifest.outputs.version }}"
+          QWENPAW_VERSION="${{ steps.version.outputs.version }}"
           DOWNLOAD_URL="https://github.com/yuexps/QwenPaw-FNOS/releases/download/v${VERSION}/qwenpaw_yuexps.fpk"
+          CHANGELOG="更新 QwenPaw 到 v${QWENPAW_VERSION} 版本"
           
           jq --arg version "$VERSION" \
              --arg download_url "$DOWNLOAD_URL" \
-             '.qwenpaw_yuexps.version = $version | .qwenpaw_yuexps.download_url = $download_url' \
+             --arg changelog "$CHANGELOG" \
+             '.qwenpaw_yuexps.version = $version | .qwenpaw_yuexps.download_url = $download_url | .qwenpaw_yuexps.changelog = $changelog' \
              fnpack.json > fnpack.json.tmp && mv fnpack.json.tmp fnpack.json
           
           git config --global user.name "github-actions[bot]"
