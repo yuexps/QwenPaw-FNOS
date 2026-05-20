@@ -63,11 +63,13 @@ jobs:
           cp -f temp/QwenPaw-*/setup.py app/server/
 
       - name: Update manifest
+        id: manifest
         run: |
           VERSION=$(date +%y.%-m.%-d)
           CHANGELOG="更新 QwenPaw 到 v${{ steps.version.outputs.version }} 版本"
           sed -i "s/^version\s*=.*/version               = ${VERSION}/" manifest
           sed -i "s|^changelog\s*=.*|changelog             = ${CHANGELOG}|" manifest
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Updated manifest:"
           grep -E "^version|^changelog" manifest
 
@@ -91,6 +93,17 @@ jobs:
           path: ${{ steps.build.outputs.fpk_file }}
           retention-days: 30
 
+      - name: Create release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ steps.manifest.outputs.version }}
+          name: v${{ steps.manifest.outputs.version }}
+          body: "更新 QwenPaw 到 v${{ steps.version.outputs.version }} 版本"
+          files: |
+            ${{ steps.build.outputs.fpk_file }}
+          draft: false
+          prerelease: false
+
       - name: Commit and push
         run: |
           git config --global user.name "github-actions[bot]"
@@ -98,4 +111,26 @@ jobs:
           
           git add app/server/ manifest
           git commit -m "更新 QwenPaw 到 v${{ steps.version.outputs.version }} 版本" || exit 0
+          git push
+
+      - name: Push to FnDepot
+        env:
+          FnDepot_TOKEN: ${{ secrets.FnDepot_TOKEN }}
+        run: |
+          git clone https://${FnDepot_TOKEN}@github.com/yuexps/FnDepot.git temp_fndepot
+          cd temp_fndepot
+          
+          VERSION="${{ steps.manifest.outputs.version }}"
+          DOWNLOAD_URL="https://github.com/yuexps/QwenPaw-FNOS/releases/download/v${VERSION}/qwenpaw_yuexps.fpk"
+          
+          jq --arg version "$VERSION" \
+             --arg download_url "$DOWNLOAD_URL" \
+             '.qwenpaw_yuexps.version = $version | .qwenpaw_yuexps.download_url = $download_url' \
+             fnpack.json > fnpack.json.tmp && mv fnpack.json.tmp fnpack.json
+          
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add fnpack.json
+          git commit -m "Update QwenPaw to v${VERSION}" || exit 0
           git push
