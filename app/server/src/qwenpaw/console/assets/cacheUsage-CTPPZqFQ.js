@@ -1,0 +1,1 @@
+function n(t,r){return r<=0?null:Math.max(0,Math.min(t/r*100,100))}function i(t){if(t===null)return"—";if(t>0&&t<1)return`${t.toFixed(1)}%`;if(t<100&&Math.round(t)===100){let r=1;for(;Number(t.toFixed(r))===100;)r+=1;return`${t.toFixed(r)}%`}return`${Math.round(t)}%`}export{n as c,i as f};

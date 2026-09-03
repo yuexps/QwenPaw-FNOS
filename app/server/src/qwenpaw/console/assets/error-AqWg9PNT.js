@@ -1,0 +1,1 @@
+function c(e){if(!(e instanceof Error))return null;const n=e.message,r=n.indexOf(" - ");if(r!==-1)try{const t=JSON.parse(n.slice(r+3));return(t==null?void 0:t.detail)||t}catch{}try{const t=JSON.parse(n);if(typeof t=="object"&&t!==null)return(t==null?void 0:t.detail)||t}catch{}return null}export{c as p};

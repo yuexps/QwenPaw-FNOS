@@ -1,0 +1,1 @@
+function i(e){return e.updatedAt??e.createdAt??null}function a(e){if(!e)return"";const t=new Date(e);if(isNaN(t.getTime()))return"";const n=r=>String(r).padStart(2,"0");return`${t.getFullYear()}-${n(t.getMonth()+1)}-${n(t.getDate())} ${n(t.getHours())}:${n(t.getMinutes())}:${n(t.getSeconds())}`}export{a as formatSessionTime,i as pickSessionDisplayTime};

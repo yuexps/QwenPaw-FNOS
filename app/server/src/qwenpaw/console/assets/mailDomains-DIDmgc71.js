@@ -1,0 +1,1 @@
+const o=["exmail.qq.com","qiye.aliyun.com","qiye.163.com"],I=["163.com","126.com","yeah.net","qq.com","foxmail.com","sina.com","sina.cn","aliyun.com","gmail.com",...o],m=new Set(o),A=I.filter(c=>!m.has(c));export{A as MAIL_DOMAIN_PICKER_DOMAINS,I as MAIL_DOMAIN_WHITELIST,o as MAIL_ENTERPRISE_SERVICE_DOMAINS};

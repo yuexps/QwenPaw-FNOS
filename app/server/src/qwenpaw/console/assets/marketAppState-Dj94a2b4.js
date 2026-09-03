@@ -1,0 +1,1 @@
+import{j as a}from"./index-C6K6UUCj.js";function l(i,o,n="community"){const t=i.id.startsWith("@")?i.id.slice(1):i.id,s=[i.id,t];n==="official"&&s.push(t.split("/").pop()??t);for(const r of s){const e=o.get(r);if(e!==void 0)return e}return null}function d(i,o,n="community"){const t=l(i,o,n);return t===null?"available":a(i.version,t)!==0?"update":"installed"}export{d as g};

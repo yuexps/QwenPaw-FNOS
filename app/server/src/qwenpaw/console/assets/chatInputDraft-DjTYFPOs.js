@@ -1,0 +1,1 @@
+const n="qwenpaw_chat_input_draft";function e(t){return t?`${n}_${t}`:n}function u(t){return t.value?JSON.stringify(t):null}function a(t){if(!t)return null;try{const r=JSON.parse(t);return r.value?r:null}catch{return null}}export{n as DRAFT_STORAGE_KEY_PREFIX,e as getDraftStorageKey,a as parseDraft,u as serializeDraft};

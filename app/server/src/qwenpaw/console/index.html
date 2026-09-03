@@ -8,17 +8,67 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
     <title>QwenPaw Console</title>
-    <script type="module" crossorigin src="/assets/index-BgAgmp-n.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/react-vendor-DAURSz_k.js">
-    <link rel="modulepreload" crossorigin href="/assets/utils-vendor-DW8wLLZl.js">
-    <link rel="modulepreload" crossorigin href="/assets/markdown-vendor-zoJ7LKuz.js">
-    <link rel="modulepreload" crossorigin href="/assets/ui-vendor-D67aqjKF.js">
-    <link rel="modulepreload" crossorigin href="/assets/i18n-vendor-BCTL_l7X.js">
-    <link rel="modulepreload" crossorigin href="/assets/dnd-vendor-aSzxQbXy.js">
+    <style>
+      .qwenpaw-boot {
+        align-items: center;
+        background: #f7f7f5;
+        color: #1f1f1f;
+        display: flex;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        inset: 0;
+        justify-content: center;
+        position: fixed;
+      }
+      .qwenpaw-boot__content {
+        align-items: center;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      .qwenpaw-boot__logo {
+        height: 68px;
+        object-fit: contain;
+        width: 68px;
+      }
+      .qwenpaw-boot__label {
+        color: #70706c;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      @media (prefers-color-scheme: dark) {
+        .qwenpaw-boot {
+          background: #141414;
+          color: #f4f4f1;
+        }
+        .qwenpaw-boot__label {
+          color: #a6a6a0;
+        }
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-C6K6UUCj.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/react-vendor-DbzdS4FP.js">
+    <link rel="modulepreload" crossorigin href="/assets/markdown-vendor-DonjKQI4.js">
+    <link rel="modulepreload" crossorigin href="/assets/ui-vendor-Bg5EyMZm.js">
+    <link rel="modulepreload" crossorigin href="/assets/i18n-vendor-BrUIoOSg.js">
+    <link rel="modulepreload" crossorigin href="/assets/dnd-vendor-DdAwup11.js">
     <link rel="stylesheet" crossorigin href="/assets/ui-vendor-CS7tQW8N.css">
-    <link rel="stylesheet" crossorigin href="/assets/index-COjz9MG-.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-CjYkpUn6.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="qwenpaw-boot" role="status" aria-live="polite">
+        <div class="qwenpaw-boot__content">
+          <img class="qwenpaw-boot__logo" src="/qwenpaw.png" alt="QwenPaw" />
+          <span class="qwenpaw-boot__label">Loading Console</span>
+        </div>
+      </div>
+    </div>
   </body>
 </html>

@@ -1,0 +1,1 @@
+function i(e){return e==="native"}function s(e,n,r){const t=e*n;if(r==="native")return Math.floor(t);const o=Math.min(1e4,e*.1);return Math.floor(Math.min(4e4,Math.max(t,o)))}export{s as calculateReserveThreshold,i as usesTieredToolResultSettings};

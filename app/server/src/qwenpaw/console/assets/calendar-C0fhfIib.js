@@ -1,0 +1,1 @@
+function d(a){const t=a.startOf("month"),r=t.subtract(t.day(),"day");return Array.from({length:42},(e,n)=>r.add(n,"day"))}function o(a){return a.slice(0,7).map(t=>t.format("dd"))}export{d as getCalendarDays,o as getCalendarWeekLabels};

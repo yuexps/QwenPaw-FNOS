@@ -1,0 +1,1 @@
+function a(e){return e.api_key_prefixes&&e.api_key_prefixes.length>0?e.api_key_prefixes:e.api_key_prefix?[e.api_key_prefix]:[]}function f(e,i,t){return e&&i.length>0&&t!=="auth_token"&&!i.some(n=>e.startsWith(n))?{valid:!1,prefix:i.join(", ")}:{valid:!0}}export{a as getValidApiKeyPrefixes,f as validateApiKey};

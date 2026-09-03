@@ -1,0 +1,1 @@
+const e="qwenpaw:skills-changed";function d(n){typeof window>"u"||window.dispatchEvent(new CustomEvent(e,{detail:{agentId:n}}))}function o(n){if(typeof window>"u")return()=>{};const i=t=>{n(t.detail)};return window.addEventListener(e,i),()=>window.removeEventListener(e,i)}export{d as n,o as s};

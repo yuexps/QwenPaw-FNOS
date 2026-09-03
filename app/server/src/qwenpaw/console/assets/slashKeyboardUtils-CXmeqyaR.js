@@ -1,0 +1,2 @@
+function s(e){return e.startsWith("/")&&!/\s/.test(e.slice(1))}function n(e,t){return s(e)?e.substring(0,t).split(`
+`).length-1===0:!1}function u(e,t){var r;if(!s(e))return{shouldComplete:!1};if(!t)return{shouldComplete:!1};const o=(r=t.getAttribute("data-path-key"))==null?void 0:r.trim();return o?{shouldComplete:!0,completionText:`/${o} `}:{shouldComplete:!1}}export{s as isSuggestionPopupOpen,n as shouldPopupHandleArrowKey,u as shouldTabCompleteSuggestion};

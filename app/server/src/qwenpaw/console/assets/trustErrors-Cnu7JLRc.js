@@ -1,0 +1,1 @@
+import{p as t}from"./error-AqWg9PNT.js";function o(r){var e;return n((e=t(r))==null?void 0:e.code)}function n(r){switch(String(r??"")){case"backup_legacy_unsigned":return"legacy";case"backup_signature_mismatch":case"backup_unknown_signature_scheme":return"foreign";default:return null}}export{o as trustModeFromError,n as trustModeFromErrorCode};

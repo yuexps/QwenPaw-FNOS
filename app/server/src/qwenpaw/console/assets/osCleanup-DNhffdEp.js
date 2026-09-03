@@ -1,1 +1,0 @@
-import{y as s,z as p,B as a,D as u,E as g}from"./index-BgAgmp-n.js";function r(t){const e=new Set(t);e.size!==0&&(s.getState().purgeApps(e),p.getState().purge(e),a.getState().purge(e),u.getState().purge(e))}function o(t){r(g(t).map(e=>e.routeId))}function S(t){s.getState().purgeSpace(t)}export{r as a,o as b,S as p};

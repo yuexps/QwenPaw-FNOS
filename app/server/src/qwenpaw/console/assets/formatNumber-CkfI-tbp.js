@@ -1,0 +1,1 @@
+function r(e){if(!Number.isFinite(e)||e<0)return"0";const t=i=>i%1===0?i.toFixed(0):i.toFixed(1).replace(/\.0$/,"");return e>=1e9?t(e/1e9)+"B":e>=1e6?e/1e6>=999.95?t(e/1e9)+"B":t(e/1e6)+"M":e>=1e3?e/1e3>=999.95?t(e/1e6)+"M":t(e/1e3)+"K":e.toLocaleString(void 0,{maximumFractionDigits:0})}export{r as f};

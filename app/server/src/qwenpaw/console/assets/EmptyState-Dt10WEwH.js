@@ -1,0 +1,1 @@
+import{j as s}from"./react-vendor-DbzdS4FP.js";import{s as t}from"./index.module-BX5ov4bx.js";function n({message:e,className:r}){return s.jsxs("div",{className:`${t.emptyState} ${r??""}`,children:[s.jsx("span",{className:t.emptyIcon,children:"📊"}),s.jsx("span",{children:e})]})}export{n as EmptyState};

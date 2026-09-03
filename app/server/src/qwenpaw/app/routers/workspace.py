@@ -18,8 +18,6 @@ import shutil
 import stat
 import tempfile
 import os
-import sys
-import unicodedata
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,15 +40,16 @@ from pydantic import BaseModel, Field
 from ..utils import check_upload_size, safe_join, schedule_agent_reload
 from ...config import (
     load_config,
-    save_config,
     AgentsRunningConfig,
 )
+from ...config.utils import mutate_config
 from ...config.config import (
+    AgentProfileConfig,
+    EmbeddingModelConfig,
     load_agent_config,
     save_agent_config,
     update_agent_config_async,
 )
-from ...config.config import EmbeddingModelConfig
 from ...agents.memory.embedding_model import (
     embedding_vector_space_fingerprint,
     test_embedding_model,
@@ -59,6 +58,7 @@ from ...agents.memory.agent_md_manager import AgentMdManager
 from ...agents.templates import get_workspace_md_template_id
 from ...agents.utils import copy_workspace_md_files
 from ...constant import BUILTIN_QA_AGENT_ID, SUPPORTED_AGENT_LANGUAGES
+from ...services.fs_name_rules import NameRules, probe_name_rules
 from ...services.workspace_files import (
     DEFAULT_CHUNK_SIZE,
     DEFAULT_PAGE_SIZE,
@@ -73,11 +73,16 @@ from ...services.workspace_files import (
     resolve_workspace_path,
     save_text_file,
 )
-from ...utils.io_utils import get_path_lock, run_sync_io
+from ...utils.io_utils import (
+    get_path_lock,
+    run_async_to_completion,
+    run_sync_io,
+)
 from ..agent_context import (
     get_agent_for_request,
     get_agent_project_dir,
     get_project_dir_for_request,
+    get_project_dirs_for_request,
 )
 
 router = APIRouter(prefix="/workspace", tags=["workspace"])
@@ -296,19 +301,96 @@ def _list_all_files(workspace_dir: Path) -> list[dict]:
     return files
 
 
+# Prefix selecting a non-primary bound project directory by absolute path,
+# e.g. ``project:/Users/me/docs``. The path is carried rather than an index
+# because the bound list is reorderable ("make primary"): an index would let a
+# persisted editor tab silently start pointing at a different directory.
+_EXTRA_PROJECT_ROOT_PREFIX = "project:"
+
+
+async def _resolve_extra_project_root(
+    request: Request,
+    workspace: Any,
+    raw_path: str,
+) -> Path:
+    """Resolve one bound project directory selected by absolute path.
+
+    The membership check is the authorization boundary for the Files API: a
+    path is served only when it is one of the directories this chat actually
+    bound. Anything else is rejected outright — never silently downgraded to
+    the primary, which would make an out-of-bounds request look like it
+    succeeded against the wrong directory.
+
+    Membership is decided by :func:`dir_key`: the candidate is keyed in a
+    worker thread and the loop compares strings, touching the filesystem
+    not at all. Two things depend on that split.
+
+    The loop must do no I/O. The obvious spelling —
+    ``same_dir(candidate, entry.path)`` — resolves *both* sides on every
+    iteration, so ten bound directories cost twenty ``resolve()`` calls on
+    the event loop per Files request, half of them re-resolving
+    ``entry.path``, which ``ResolvedProjectDirs`` already canonicalized.
+    One stalled SMB or FUSE mount in the list would then stall every other
+    request the process is serving.
+
+    And the comparison must be by directory identity, not by path text. A
+    string comparison decides membership on spelling: fold case and an
+    unbound ``/srv/REPO`` is served as ``/srv/repo`` on a case-sensitive
+    volume; do not fold and a bound directory reached by a symlink, a
+    mount alias or a ``..`` detour is refused with 403. Identity is right
+    in both directions without knowing anything about the volume.
+
+    A configured directory that does not exist has no identity, so its key
+    is its path text and the comparison degrades to the old spelling-based
+    one — acceptable, because there is nothing there to serve either way.
+    """
+    from ...services.project_directory import dir_key
+
+    candidate = raw_path.strip()
+    if not candidate:
+        raise HTTPException(status_code=400, detail="root path is empty")
+
+    resolved = await get_project_dirs_for_request(request, workspace)
+    candidate_key = await run_sync_io(dir_key, candidate)
+    for entry in resolved.dirs:
+        # An entry built without a key would otherwise match the empty
+        # string; only a real key can grant membership.
+        if entry.key and entry.key == candidate_key:
+            return entry.path
+    # The workspace is a legitimate root, but it has its own ``root=workspace``
+    # selector; accepting it here too would let one root be addressed two ways.
+    raise HTTPException(
+        status_code=403,
+        detail="Not a bound project directory",
+    )
+
+
 async def _resolve_files_root(
     request: Request,
     workspace: Any,
     root: str,
 ) -> Path:
-    """Resolve the selected project or agent configuration directory."""
+    """Resolve the selected project or agent configuration directory.
+
+    Accepted values:
+
+    * ``workspace`` — the agent's own storage root
+    * ``project`` — the PRIMARY bound project directory
+    * ``project:<absolute path>`` — any other directory bound to this chat
+    """
     if root == "workspace":
         return workspace.workspace_dir
     if root == "project":
         return await get_project_dir_for_request(request, workspace)
+    if root.startswith(_EXTRA_PROJECT_ROOT_PREFIX):
+        return await _resolve_extra_project_root(
+            request,
+            workspace,
+            root[len(_EXTRA_PROJECT_ROOT_PREFIX) :],
+        )
     raise HTTPException(
         status_code=400,
-        detail="root must be project or workspace",
+        detail="root must be project, project:<path> or workspace",
     )
 
 
@@ -613,40 +695,23 @@ def _cleanup_upload_reservations(reservations: set[Path]) -> None:
         reservation.unlink(missing_ok=True)
 
 
-def _probe_name_alias(directory: Path, first: str, second: str) -> bool:
-    """Return whether two spellings address the same directory entry."""
-    first_path = directory / first
-    second_path = directory / second
-    descriptor = os.open(
-        first_path,
-        os.O_CREAT | os.O_EXCL | os.O_WRONLY,
-        0o600,
-    )
-    os.close(descriptor)
-    try:
-        return second_path.exists()
-    finally:
-        first_path.unlink(missing_ok=True)
-
-
 def _filesystem_name_rules(directory: Path) -> tuple[bool, bool]:
-    """Detect case and Unicode normalization sensitivity for a directory."""
-    token = secrets.token_hex(8)
-    try:
-        case_aliases = _probe_name_alias(
-            directory,
-            f".qwenpaw-case-{token}-a",
-            f".QWENPAW-CASE-{token}-A",
-        )
-        normalization_aliases = _probe_name_alias(
-            directory,
-            f".qwenpaw-unicode-{token}-é",
-            f".qwenpaw-unicode-{token}-e\u0301",
-        )
-    except OSError:
-        case_aliases = os.name == "nt" or sys.platform == "darwin"
-        normalization_aliases = sys.platform == "darwin"
-    return not case_aliases, not normalization_aliases
+    """Detect case and Unicode normalization sensitivity for a directory.
+
+    Thin wrapper over the shared probe: the temp-file technique this used
+    to implement inline now lives in
+    :mod:`qwenpaw.services.fs_name_rules`, unchanged in behaviour. It stays
+    a write probe because the question here is about names that do *not*
+    exist yet — would these two uploads collide? — which nothing that
+    inspects existing entries can answer.
+
+    Project-directory comparison deliberately does **not** use this. There
+    the directories exist, so ``dir_key`` asks which entry each path
+    reaches and gets an exact answer; a name-rules guess would be both
+    weaker and, for a mount point, wrong.
+    """
+    rules = probe_name_rules(directory)
+    return rules.case_sensitive, rules.normalization_sensitive
 
 
 def _upload_name_key(
@@ -656,12 +721,10 @@ def _upload_name_key(
     normalization_sensitive: bool,
 ) -> str:
     """Build a filename comparison key matching the target filesystem."""
-    comparable = (
-        filename
-        if normalization_sensitive
-        else unicodedata.normalize("NFC", filename)
-    )
-    return comparable if case_sensitive else comparable.casefold()
+    return NameRules(
+        case_sensitive=case_sensitive,
+        normalization_sensitive=normalization_sensitive,
+    ).key(filename)
 
 
 def _prepare_upload_targets(
@@ -989,7 +1052,7 @@ async def write_code_file(
 
     def _write() -> int:
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
+        target.write_bytes(content.encode("utf-8"))
         return target.stat().st_size
 
     try:
@@ -1293,9 +1356,11 @@ async def put_audio_mode(
                 f"Must be one of: {', '.join(sorted(valid))}"
             ),
         )
-    config = load_config()
-    config.agents.audio_mode = audio_mode
-    save_config(config)
+
+    def apply_audio_mode(config: Any) -> None:
+        config.agents.audio_mode = audio_mode
+
+    await run_sync_io(mutate_config, apply_audio_mode)
     return {"audio_mode": audio_mode}
 
 
@@ -1348,9 +1413,11 @@ async def put_transcription_provider_type(
                 f"Must be one of: {', '.join(sorted(valid))}"
             ),
         )
-    config = load_config()
-    config.agents.transcription_provider_type = provider_type
-    save_config(config)
+
+    def apply_provider_type(config: Any) -> None:
+        config.agents.transcription_provider_type = provider_type
+
+    await run_sync_io(mutate_config, apply_provider_type)
     return {"transcription_provider_type": provider_type}
 
 
@@ -1411,9 +1478,11 @@ async def put_transcription_provider(
 ) -> dict:
     """Set the transcription provider."""
     provider_id = (body.get("provider_id") or "").strip()
-    config = load_config()
-    config.agents.transcription_provider_id = provider_id
-    save_config(config)
+
+    def apply_provider(config: Any) -> None:
+        config.agents.transcription_provider_id = provider_id
+
+    await run_sync_io(mutate_config, apply_provider)
     return {"provider_id": provider_id}
 
 
@@ -1604,9 +1673,11 @@ async def _apply_embedding_runtime(
     memory_manager: Any,
     embedding_config: EmbeddingModelConfig,
     agent_id: str,
+    *,
+    force_reload: bool = False,
 ) -> bool:
     """Apply an embedding config to a running memory manager."""
-    if hasattr(memory_manager, "apply_tested_embedding"):
+    if not force_reload and hasattr(memory_manager, "apply_tested_embedding"):
         try:
             if await memory_manager.apply_tested_embedding(embedding_config):
                 return True
@@ -1617,6 +1688,10 @@ async def _apply_embedding_runtime(
                 exc,
                 exc_info=True,
             )
+            # An exception is an integration/runtime failure, not the normal
+            # "reload required" result.  Return failure so the caller rolls
+            # back the persisted config before restoring the old runtime.
+            return False
     if hasattr(memory_manager, "reload_embedding_config"):
         try:
             return bool(await memory_manager.reload_embedding_config())
@@ -1706,6 +1781,7 @@ async def put_agents_running_config(
         old_agent_config = None
         embedding_changed = False
         memory_manager_backend_changed = False
+        restores_indexed_space = False
         new_embedding_config = (
             running_config.reme_light_memory_config.embedding_model_config
         )
@@ -1714,6 +1790,7 @@ async def put_agents_running_config(
         def persist_running_config(agent_config):
             nonlocal old_agent_config, embedding_changed
             nonlocal memory_manager_backend_changed
+            nonlocal restores_indexed_space
             old_agent_config = agent_config.model_copy(deep=True)
             old_running_config = agent_config.running or AgentsRunningConfig()
             memory_manager_backend_changed = (
@@ -1725,9 +1802,29 @@ async def put_agents_running_config(
             vector_space_changed = embedding_vector_space_fingerprint(
                 old_embedding_config,
             ) != embedding_vector_space_fingerprint(new_embedding_config)
-            running_config.reme_light_memory_config.needs_reindex = (
-                old_memory_config.needs_reindex or vector_space_changed
+            new_memory_config = running_config.reme_light_memory_config
+            indexed_config = old_memory_config.pending_reindex_embedding_config
+            matches_existing_index = bool(
+                old_memory_config.needs_reindex
+                and indexed_config is not None
+                and embedding_vector_space_fingerprint(new_embedding_config)
+                == embedding_vector_space_fingerprint(indexed_config),
             )
+            restores_indexed_space = matches_existing_index
+            if matches_existing_index:
+                new_memory_config.needs_reindex = False
+                new_memory_config.pending_reindex_embedding_config = None
+            else:
+                new_memory_config.needs_reindex = (
+                    old_memory_config.needs_reindex or vector_space_changed
+                )
+                new_memory_config.pending_reindex_embedding_config = (
+                    indexed_config
+                )
+            if vector_space_changed and not old_memory_config.needs_reindex:
+                new_memory_config.pending_reindex_embedding_config = (
+                    old_embedding_config.model_copy(deep=True)
+                )
             embedding_changed = old_embedding_config != new_embedding_config
             if (
                 embedding_changed
@@ -1748,32 +1845,39 @@ async def put_agents_running_config(
             running_config.approval_level = None
             agent_config.running = running_config
 
-        agent_config = await update_agent_config_async(
-            workspace.agent_id,
-            persist_running_config,
-        )
-
-        if (
-            embedding_changed
-            and not memory_manager_backend_changed
-            and new_memory_manager_backend == "remelight"
-            and memory_manager is not None
-        ):
-            embedding_updated = await _apply_embedding_runtime(
-                memory_manager,
-                new_embedding_config,
+        async def persist_apply_and_schedule() -> AgentProfileConfig:
+            agent_config = await update_agent_config_async(
                 workspace.agent_id,
+                persist_running_config,
             )
-            if not embedding_updated:
-                assert old_agent_config is not None
-                await _rollback_embedding_update(
-                    workspace.agent_id,
-                    memory_manager,
-                    old_agent_config,
-                    agent_config,
-                )
 
-    schedule_agent_reload(request, workspace.agent_id)
+            if (
+                embedding_changed
+                and not memory_manager_backend_changed
+                and new_memory_manager_backend == "remelight"
+                and memory_manager is not None
+            ):
+                embedding_updated = await _apply_embedding_runtime(
+                    memory_manager,
+                    new_embedding_config,
+                    workspace.agent_id,
+                    force_reload=restores_indexed_space,
+                )
+                if not embedding_updated:
+                    assert old_agent_config is not None
+                    await _rollback_embedding_update(
+                        workspace.agent_id,
+                        memory_manager,
+                        old_agent_config,
+                        agent_config,
+                    )
+
+            schedule_agent_reload(request, workspace.agent_id)
+            return agent_config
+
+        agent_config = await run_async_to_completion(
+            persist_apply_and_schedule(),
+        )
 
     running_config.approval_level = agent_config.approval_level
     return running_config

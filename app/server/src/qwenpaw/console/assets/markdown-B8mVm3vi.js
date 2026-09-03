@@ -1,0 +1,1 @@
+const o=/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;function a(t){const s=o.exec(t);if(!s)return{body:t,entries:[]};const n=s[1].split(/\r?\n/).map(r=>{const e=r.indexOf(":");return e<=0||/^\s/.test(r)?null:{key:r.slice(0,e).trim(),value:r.slice(e+1).trim()}}).filter(r=>r!==null);return{body:t.slice(s[0].length),entries:n}}const i=t=>a(t).body;export{a as p,i as s};
