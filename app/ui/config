@@ -5,6 +5,7 @@
             "icon": "images/icon_{0}.png",
             "type": "iframe",
             "protocol": "http",
+            "port": "${qwenpaw_webui_port}",
             "gatewaySocket": "web.sock",
             "gatewayPrefix": "/app/qwenpaw_yuexps",
             "url": "/app/qwenpaw_yuexps/",
