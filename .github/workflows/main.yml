@@ -99,6 +99,7 @@ jobs:
           rm -rf app/server/src
           mkdir -p app/server/src
           cp -r temp/QwenPaw-*/src app/server/
+          cp -r temp/QwenPaw-*/packages app/server/
           cp -f temp/QwenPaw-*/README.md app/server/
           cp -f temp/QwenPaw-*/pyproject.toml app/server/
           cp -f temp/QwenPaw-*/setup.py app/server/
