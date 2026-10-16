@@ -1,0 +1,1 @@
+import{gx as a,gz as o}from"./ui-vendor-BSGzQnNi.js";var r=a((t,e)=>{let n;return e==="sandbox"&&(n=o("#i"+t)),(e==="sandbox"?o(n.nodes()[0].contentDocument.body):o("body")).select(`[id="${t}"]`)},"getDiagramElement");export{r as g};

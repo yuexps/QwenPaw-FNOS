@@ -1,0 +1,1 @@
+import{j as e}from"./react-vendor-DgUiRFgt.js";import{m as o,n as r}from"./index-BpFaGbCq.js";function d({children:t,className:i,index:a=0,animate:n=!0}){const s=o();return e.jsx(r.div,{className:i,initial:s||!n?!1:{opacity:0,y:8},animate:{opacity:1,y:0},transition:{type:"spring",stiffness:380,damping:36,delay:Math.min(a*.03,.18)},children:t})}export{d as C};

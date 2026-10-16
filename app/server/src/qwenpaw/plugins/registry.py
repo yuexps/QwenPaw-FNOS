@@ -218,6 +218,10 @@ class PluginRegistry:  # pylint:disable=too-many-public-methods
         """
         self._plugin_http_app = app
 
+    def get_plugin_http_app(self) -> Optional[Any]:
+        """Return the application that owns the native plugin lifecycle."""
+        return self._plugin_http_app
+
     def register_http_router(
         self,
         plugin_id: str,
@@ -954,8 +958,10 @@ class PluginRegistry:  # pylint:disable=too-many-public-methods
             plugin_id: Plugin identifier to remove
         """
         from qwenpaw.memory import memory_registry
+        from qwenpaw.market import market_registry
 
         self.assert_memory_backends_not_in_use(plugin_id)
+        market_registry.unregister_owner(plugin_id)
 
         self._unregister_plugin_http_routes(plugin_id)
         self._unregister_plugin_channels(plugin_id)

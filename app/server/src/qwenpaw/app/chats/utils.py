@@ -3,12 +3,14 @@ import json
 import logging
 import platform
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, tzinfo
+from functools import lru_cache
 from typing import List, Optional, Union
 from urllib.parse import unquote, urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from agentscope.message import Msg
+from pydantic import ValidationError
 from qwenpaw.agents.context.scroll.serialize import strip_headline
 from qwenpaw.schemas import (
     Message,
@@ -21,14 +23,17 @@ from qwenpaw.schemas import (
     FunctionCall,
     FunctionCallOutput,
     MessageType,
+    ContentType,
 )
 from qwenpaw.exceptions import (
     AgentRuntimeErrorException,
 )
 
 from ...config import load_config
+from ...config.timezone import detect_system_timezone
 from ...constant import (
     QWENPAW_MESSAGE_TAG_KEY,
+    QWENPAW_USER_CONTENT_KEY,
     SCROLL_MEMORY_MESSAGE_TAG,
     SYNTHETIC_USER_MESSAGE_TAGS,
 )
@@ -36,9 +41,54 @@ from ...constant import (
 logger = logging.getLogger(__name__)
 
 
-def _process_local_tz():
-    """Return the process-local timezone used by ``datetime.now()``."""
+def _fixed_local_tz() -> tzinfo:
+    """The process's current fixed offset, as ``datetime.now()`` sees it."""
     return datetime.now().astimezone().tzinfo or timezone.utc
+
+
+def _resolve_process_zone() -> Optional[ZoneInfo]:
+    """Return the host's IANA zone, or ``None`` when none can be resolved."""
+    try:
+        return ZoneInfo(detect_system_timezone())
+    except (ZoneInfoNotFoundError, KeyError, ValueError):
+        return None
+
+
+def _zone_explains_offset(zone: ZoneInfo, fixed: tzinfo) -> bool:
+    """Whether *zone* puts the current wall clock at *fixed*'s offset.
+
+    ``detect_system_timezone()`` cannot report failure — it falls back to
+    ``"UTC"`` — so a resolved zone is only trustworthy when it agrees with
+    the offset the process is actually running at.  Otherwise a host whose
+    zone cannot be resolved would be stamped ``+00:00`` — off by the whole
+    UTC offset, not by the DST delta.
+    """
+    now = datetime.now()
+    return (
+        now.replace(tzinfo=zone).utcoffset()
+        == now.replace(
+            tzinfo=fixed,
+        ).utcoffset()
+    )
+
+
+@lru_cache(maxsize=1)
+def _process_local_tz():
+    """Return the process-local timezone used by ``datetime.now()``.
+
+    Resolve the host's IANA zone so the returned ``tzinfo`` carries DST
+    rules.  ``datetime.now().astimezone().tzinfo`` only ever describes the
+    *current* offset (a fixed ``datetime.timezone``), so attaching it to a
+    naive timestamp recorded in the opposite DST half-year silently shifts
+    the value by the DST delta.  The resolved zone is kept only when it
+    explains the process's current offset; otherwise it falls back to the
+    previous behaviour and uses the fixed offset.
+    """
+    fixed = _fixed_local_tz()
+    zone = _resolve_process_zone()
+    if zone is not None and _zone_explains_offset(zone, fixed):
+        return zone
+    return fixed
 
 
 def _normalize_msg_timestamp(ts_value: str, user_tz: ZoneInfo) -> str:
@@ -82,26 +132,19 @@ def _is_scroll_memory_placeholder(msg: Msg) -> bool:
     )
 
 
-# Visual compression collapses history/context ranges into user-role
-# messages with these names. They are model-only reconstructions.
-_VISUAL_PLACEHOLDER_NAMES = frozenset(
-    {"visual_context", "visual_history"},
-)
-
-
 def _is_synthetic_user_message(msg: Msg) -> bool:
     """Return whether *msg* is a runtime-injected user-role message.
 
     Loop gates, stop handlers, and rubric evaluation append tagged
     ``role="user"`` stubs to keep a turn going; visual compression
-    collapses history into ``visual_history`` / ``visual_context``
+    collapses history into ``visual_history``
     user messages. None of them is user transcript — rendering them as
     user cards made the original instruction appear rewritten after a
     session switch.
     """
     if msg.role != "user":
         return False
-    if msg.name in _VISUAL_PLACEHOLDER_NAMES:
+    if msg.name == "visual_history":
         return True
     metadata = getattr(msg, "metadata", None)
     return (
@@ -503,6 +546,36 @@ def clean_display_text(text: str, role: str) -> str:
     return strip_injected_skill_block(strip_headline(text) or "", role)
 
 
+def _original_user_message(msg: Msg, metadata: dict) -> Message | None:
+    """Restore attachment input without exposing model-only file hints."""
+    if msg.role != "user" or not isinstance(msg.metadata, dict):
+        return None
+    content = msg.metadata.get(QWENPAW_USER_CONTENT_KEY)
+    if not isinstance(content, list) or not content:
+        return None
+    try:
+        message = Message(
+            type=MessageType.MESSAGE,
+            role=msg.role,
+            content=content,
+            metadata=metadata,
+        ).completed()
+    except ValidationError:
+        logger.debug("Invalid original user content for message %s", msg.id)
+        return None
+    if not all(
+        isinstance(getattr(part, "type", None), ContentType)
+        for part in message.content
+    ):
+        return None
+    message.content = [
+        part
+        for part in message.content
+        if not (isinstance(part, TextContent) and not part.text)
+    ]
+    return message
+
+
 # pylint: disable=too-many-branches,too-many-statements, too-many-nested-blocks
 def agentscope_msg_to_message(
     messages: Union[Msg, List[Msg]],
@@ -561,10 +634,19 @@ def agentscope_msg_to_message(
         metadata = {
             "original_id": msg.id,
             "original_name": msg.name,
-            "metadata": msg.metadata,
+            "metadata": {
+                key: value
+                for key, value in (msg.metadata or {}).items()
+                if key != QWENPAW_USER_CONTENT_KEY
+            },
             "timestamp": ts_value,
             "finished_at": finished_value or None,
         }
+
+        original_message = _original_user_message(msg, metadata)
+        if original_message is not None:
+            results.append(original_message)
+            continue
 
         if isinstance(msg.content, str):
             message = Message(type=MessageType.MESSAGE, role=role)

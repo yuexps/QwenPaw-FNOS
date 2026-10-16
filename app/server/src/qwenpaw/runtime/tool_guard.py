@@ -394,7 +394,7 @@ async def _ask_user_approval(
 
     try:
         decision = await svc.wait_for_approval(
-            pending.request_id,
+            pending,
             TOOL_GUARD_APPROVAL_TIMEOUT_SECONDS,
         )
     except Exception as exc:

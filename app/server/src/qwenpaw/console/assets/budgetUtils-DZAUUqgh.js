@@ -1,0 +1,1 @@
+function e(t,n=!1){return n?"inherit":t===null?"unlimited":t===0?"blocked":"limited"}function i(t,n){return t==="limited"?n:t==="blocked"?0:null}const o=(t,n)=>new Intl.NumberFormat(n,{notation:"compact",maximumFractionDigits:1}).format(t);export{i as budgetLimit,e as budgetMode,o as formatTokens};

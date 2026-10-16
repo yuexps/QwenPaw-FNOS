@@ -1,0 +1,1 @@
+function f(r){if(!(r!=null&&r.trim()))return!1;const e=r.trim().split(/\s+/);if(e.length!==5||!e.every(t=>/^[a-z0-9*/,-]+$/i.test(t)))return!1;const i=[[0,59],[0,23],[1,31],[1,12],[0,6]];return e.every((t,m)=>{const[s,c]=i[m];return[...t.matchAll(/\d+/g)].every(({0:o})=>{const n=Number(o);return n>=s&&n<=c})})}export{f as isValidDreamCronShape};

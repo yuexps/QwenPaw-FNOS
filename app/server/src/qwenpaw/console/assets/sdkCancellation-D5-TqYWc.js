@@ -1,0 +1,1 @@
+async function s(c,e){var t;const r=c.chatSessionId||c.session_id,a=e.resolveBackendSessionId(r)||r;if(!a)throw new Error("Missing chat identity for cancellation");try{await e.stopChat(a)}catch(n){throw(t=e.onError)==null||t.call(e,n),n}}export{s as cancelSdkChatRequest};
