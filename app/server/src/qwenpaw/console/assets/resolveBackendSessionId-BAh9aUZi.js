@@ -1,0 +1,1 @@
+import{s as t}from"./index-BpFaGbCq.js";function r(n,s){if(!n)return"";const e=t.getBackendSessionId(n);return e?s?e!==n||t.getRealIdForSession(n)!=null?e:"":e:""}function c(n){const s=n&&n.trim()||"";if(s)return r(s,!1)||t.getBackendSessionId(s);const e=r(t.lastActiveChatId||"",!0);if(e)return e;const i=t.lastActiveChatId||"";return i?t.getBackendSessionId(i):""}export{c as r};

@@ -1,0 +1,1 @@
+function r(l,t,o){if(l!==t)for(const e of["approval_level-",`harness-approval-${o}-`]){const a=localStorage.getItem(e+l);a!==null&&(localStorage.getItem(e+t)===null&&localStorage.setItem(e+t,a),localStorage.removeItem(e+l))}}export{r as migrateChatSessionPreferences};

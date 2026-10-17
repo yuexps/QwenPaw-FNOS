@@ -1,0 +1,1 @@
+function o(r){return r==="qwenpaw"}function t(r){var n;return(r==null?void 0:r.backend)==="qwenpaw"&&((n=r.backend_capabilities)==null?void 0:n.workspace_ui)!==!1}function e(r,n){return o(r)||!!(n!=null&&n.attachments)}export{e as a,o as r,t as s};

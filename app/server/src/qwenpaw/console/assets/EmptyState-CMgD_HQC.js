@@ -1,1 +1,0 @@
-import{j as s}from"./react-vendor-CirTONsx.js";import{s as t}from"./index.module-toTChVDG.js";import{u as r}from"./i18n-vendor-DhBEv3PR.js";function i({className:e}){const{t:n}=r();return s.jsxs("div",{className:`${t.emptyState} ${e||""}`,children:[s.jsx("span",{className:t.emptyIcon,children:"📦"}),s.jsx("span",{children:n("environments.noVariables")})]})}export{i as EmptyState};

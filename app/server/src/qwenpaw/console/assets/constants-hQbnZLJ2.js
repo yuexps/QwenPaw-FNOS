@@ -1,1 +1,0 @@
-const o=n=>/[Z+\-]\d{2}:?\d{2}$/.test(n)||n.endsWith("Z")?n:n+"Z",i=n=>{if(n==null)return"N/A";const r=typeof n=="string"?o(n):n;return new Date(r).toLocaleString("zh-CN",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})};export{i as formatTime};
