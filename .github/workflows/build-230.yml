@@ -20,9 +20,9 @@ on:
         default: '2.3.0'
         type: string
       pkg_version:
-        description: 'fpk 版本号，必须大于已装的 26.10.23'
+        description: 'fpk 版本号，必须大于已装的 26.11.15'
         required: true
-        default: '26.11.14'
+        default: '26.11.16'
         type: string
 
 env:
@@ -41,13 +41,24 @@ jobs:
 
       - name: Guard - cmd/common must be the 2.3.0 fixed version
         run: |
-          if ! grep -q 'QWENPAW_WORKING_DIR=' cmd/common || \
-             ! grep -q '\[channels\]' cmd/common || \
-             ! grep -q '重新安装 QwenPaw 依赖' cmd/common; then
-            echo "::error::请先用 cmd-common-fixed 覆盖 cmd/common，否则升级后依赖不会更新"
+          # 五项必查（缺一即产出坏包）：
+          #   1) QWENPAW_WORKING_DIR      —— 2.3.0 起 constant.py 需要它
+          #   2) QWENPAW_DEPENDENCY_STATE_DIR —— 修第一道墙（passwd home 不可写），
+          #      不设则启动即 DEPENDENCY_STATE_ROOT_UNAVAILABLE（11-14 实测）
+          #   3) [channels] extra         —— 2.3.0 频道依赖拆组，不加丢多端接入
+          #   4) 重新安装 QwenPaw 依赖    —— upgrade_callback 必须重装依赖
+          #   5) setuptools pin           —— 2.3.0 setup.py build_py 钩子需要
+          missing=""
+          grep -q 'QWENPAW_WORKING_DIR='                 cmd/common || missing="$missing QWENPAW_WORKING_DIR"
+          grep -q 'QWENPAW_DEPENDENCY_STATE_DIR='        cmd/common || missing="$missing QWENPAW_DEPENDENCY_STATE_DIR"
+          grep -q '\[channels\]'                         cmd/common || missing="$missing channels-extra"
+          grep -q '重新安装 QwenPaw 依赖'                cmd/common || missing="$missing upgrade-dep-reinstall"
+          grep -q 'setuptools>=68,<82'                   cmd/common || missing="$missing setuptools-pin"
+          if [ -n "$missing" ]; then
+            echo "::error::cmd/common 缺少必要修复:$missing"
             exit 1
           fi
-          echo "cmd/common 检查通过"
+          echo "cmd/common 五项检查全部通过"
 
       - name: Download official QwenPaw source
         run: |
@@ -67,6 +78,12 @@ jobs:
           node-version: '22.23.4'
 
       - name: Build frontend console
+        env:
+          # 2.3.0 前端新增构建时 basename（console/src/utils/navigationMode.ts:9
+          # 读 import.meta.env.VITE_CONSOLE_BASENAME，未设时默认 "/console"）。
+          # 飞牛入口前缀是 /app/qwenpaw_yuexps，不设则 React Router basename
+          # 匹配不上 → 路由空白 → 黑屏。此处必须与 ui/config 的 gatewayPrefix 一致。
+          VITE_CONSOLE_BASENAME: /app/qwenpaw_yuexps
         run: |
           cd "$SRC_DIR/console"
           npm ci --include=dev
