@@ -1,8 +1,8 @@
 name: Build QwenPaw FNOS
 
 on:
-  schedule:
-    - cron: '0 16 */3 * *' # 每三天 Asia/Shanghai 00:00 自动检查更新
+  # 2026-11-14 禁用定时构建（上游 main.yml 缺 2.3.0 所需修复，自动跑会产出坏包）
+  # 需要时用 workflow_dispatch 手动触发，或用 build-230.yml
   workflow_dispatch:
     inputs:
       force:
