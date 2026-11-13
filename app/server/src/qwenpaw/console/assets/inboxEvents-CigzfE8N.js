@@ -1,0 +1,1 @@
+const t=200,e=["cron","heartbeat","memory","skill_autoupdate","mail","community"],o="qwenpaw:inbox-changed",E="qwenpaw:inbox-open",a="qwenpaw.inbox.sourceType";function _(n={}){window.dispatchEvent(new CustomEvent(o,{detail:n}))}const s=new Set(e);function c(n){return s.has(n.source_type)}export{o as I,e as P,a,E as b,t as c,c as i,_ as n};

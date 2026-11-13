@@ -1,0 +1,1 @@
+function o(r){if(r)try{const t=new URL(r,"https://platform.agentscope.io");return["https:","http:"].includes(t.protocol)?t.href:void 0}catch{return}}function n(r){const t=o(r);if(!t)return;const e=new URL(t);if(/\.(mp4|webm|ogg|ogv|mov|m4v)$/i.test(e.pathname))return e.searchParams.delete("x-oss-process"),e.href}export{o as mediaUrl,n as videoUrl};

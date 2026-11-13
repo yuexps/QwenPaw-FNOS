@@ -1,0 +1,1 @@
+const d="session-model-changed";function s(n){window.dispatchEvent(n?new CustomEvent(d,{detail:n}):new Event(d))}function i(n,t){if(!(n instanceof CustomEvent)||!n.detail)return!0;const e=n.detail;return e.agentId===t.agentId&&e.sessionId===t.sessionId&&(e.chatId??null)===(t.chatId??null)}export{s as d,i};

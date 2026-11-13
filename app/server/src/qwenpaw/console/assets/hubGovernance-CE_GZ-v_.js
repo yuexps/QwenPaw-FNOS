@@ -1,0 +1,1 @@
+import{v as s,m as a,a7 as n}from"./index-DZrIuh3B.js";async function p(r,t="GET",o){const e=await fetch(s(`/hub/${r}`),{method:t,headers:{Authorization:`Bearer ${a()}`,"Content-Type":"application/json"},body:o===void 0?void 0:JSON.stringify(o)});if(!e.ok)throw new Error(await n(e,"Hub request failed"));return e.status===204?void 0:e.json()}export{p as g};

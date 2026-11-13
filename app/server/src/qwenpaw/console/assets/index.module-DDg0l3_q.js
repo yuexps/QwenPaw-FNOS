@@ -1,0 +1,1 @@
+const e="index-module__voiceTranscriptionPage__MXRQh",c="index-module__content__bx5S7",o="index-module__centerState__cWIcF",t="index-module__loadError__61rlG",n="index-module__card__80707",r="index-module__cardTitle__ElJxv",_="index-module__cardDescription__97HNg",d={voiceTranscriptionPage:e,content:c,centerState:o,loadError:t,card:n,cardTitle:r,cardDescription:_};export{d as s};
