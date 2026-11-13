@@ -17,7 +17,9 @@ QWENPAW_PORT="${qwenpaw_webui_port}"
 
 # 环境变量
 export HOME="${TRIM_PKGVAR}/data"
-export QWENPAW_WORKING_DIR="${TRIM_PKGVAR}/data"
+export QWENPAW_WORKING_DIR="${TRIM_PKGVAR}/data/.qwenpaw"
+export QWENPAW_DEPENDENCY_STATE_DIR="${TRIM_PKGVAR}/data/.qwenpaw/dependency-environments"
+mkdir -p "${QWENPAW_DEPENDENCY_STATE_DIR}"
 export PYTHONPATH="${QWENPAW_SRC}:${PYTHONPATH}"
 export PIP_CACHE_DIR="${TRIM_PKGVAR}/.pip_cache"
 export QWENPAW_AUTH_ENABLED=true
