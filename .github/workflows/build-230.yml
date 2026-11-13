@@ -1,0 +1,125 @@
+# 放到 fork 仓库的 .github/workflows/build-230.yml
+# 用法：Actions 页手动 Run workflow；构建完在 Artifacts 里下载 qwenpaw_yuexps.fpk
+#
+# 相对上游 yuexps/QwenPaw-FNOS 的 main.yml，本文件修了 4 处：
+#   1) 复制 scripts/、MANIFEST.in、website/public/docs —— 2.3.0 的 setup.py
+#      安装时会调用 scripts/pack/generate_plugin_metadata.py，缺了直接装不上
+#   2) Node 版本对齐官方 .nvmrc（22.23.4），npm ci 加 --include=dev
+#   3) 固定上游版本为 2.3.0，不依赖 releases/latest 自动判定的时序
+#   4) 加 guard：cmd/common 若未替换为修复版，直接失败，避免产出「能装但升级后起不来」的包
+# cmd/common 的修复内容见同目录 cmd-common-fixed。
+
+name: Build QwenPaw 2.3.0 for fnOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      upstream_version:
+        description: '上游 QwenPaw 版本（不含 v）'
+        required: true
+        default: '2.3.0'
+        type: string
+      pkg_version:
+        description: 'fpk 版本号，必须大于已装的 26.10.23'
+        required: true
+        default: '26.11.14'
+        type: string
+
+env:
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout FNOS packaging project
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Guard - cmd/common must be the 2.3.0 fixed version
+        run: |
+          if ! grep -q 'QWENPAW_WORKING_DIR=' cmd/common || \
+             ! grep -q '\[channels\]' cmd/common || \
+             ! grep -q '重新安装 QwenPaw 依赖' cmd/common; then
+            echo "::error::请先用 cmd-common-fixed 覆盖 cmd/common，否则升级后依赖不会更新"
+            exit 1
+          fi
+          echo "cmd/common 检查通过"
+
+      - name: Download official QwenPaw source
+        run: |
+          V="${{ inputs.upstream_version }}"
+          wget -q "https://github.com/agentscope-ai/QwenPaw/archive/refs/tags/v${V}.zip" -O /tmp/qwenpaw.zip
+          unzip -q /tmp/qwenpaw.zip -d /tmp/src
+          SRC_DIR=$(find /tmp/src -maxdepth 1 -type d -name 'QwenPaw-*' | head -1)
+          test -n "$SRC_DIR"
+          echo "SRC_DIR=$SRC_DIR" >> "$GITHUB_ENV"
+          echo "上游源码: $SRC_DIR"
+          echo "Node pin: $(cat "$SRC_DIR/.nvmrc")"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          # 对齐官方 .nvmrc（22.23.4）。不做 npm cache：源码解压在工作区之外的 /tmp。
+          node-version: '22.23.4'
+
+      - name: Build frontend console
+        run: |
+          cd "$SRC_DIR/console"
+          npm ci --include=dev
+          npm run build
+
+      - name: Assemble app/server
+        run: |
+          set -e
+          rm -rf app/server
+          mkdir -p app/server
+          cp -r "$SRC_DIR/src"       app/server/
+          cp -r "$SRC_DIR/packages"  app/server/
+          cp -r "$SRC_DIR/plugins"   app/server/
+          # 2.3.0: setup.py 的 build_py 钩子依赖 scripts/pack/*
+          cp -r "$SRC_DIR/scripts"   app/server/
+          for f in pyproject.toml setup.py MANIFEST.in README.md; do
+            cp -f "$SRC_DIR/$f" app/server/
+          done
+          # 官方 Dockerfile 会把网站文档注入包内 docs/
+          if [ -d "$SRC_DIR/website/public/docs" ]; then
+            mkdir -p app/server/src/qwenpaw/docs
+            cp -r "$SRC_DIR/website/public/docs/." app/server/src/qwenpaw/docs/
+          fi
+          # 前端产物注入 src/qwenpaw/console/
+          rm -rf app/server/src/qwenpaw/console
+          mkdir -p app/server/src/qwenpaw/console
+          cp -R "$SRC_DIR/console/dist/." app/server/src/qwenpaw/console/
+          echo "app/server 文件数: $(find app/server -type f | wc -l)"
+          test -f app/server/scripts/pack/generate_plugin_metadata.py
+
+      - name: Update manifest
+        run: |
+          V="${{ inputs.upstream_version }}"
+          PV="${{ inputs.pkg_version }}"
+          sed -i "s/^version\s*=.*/version               = ${PV}/" manifest
+          sed -i "s|^changelog\s*=.*|changelog             = 更新 QwenPaw 到 v${V} 版本（自制包）|" manifest
+          grep -E '^appname|^version|^changelog' manifest
+
+      - name: Install fnpack
+        run: |
+          chmod +x build/fnpack-1.2.1-linux-amd64
+          sudo cp build/fnpack-1.2.1-linux-amd64 /usr/local/bin/fnpack
+          fnpack --help >/dev/null 2>&1 || true
+
+      - name: Build fpk
+        run: |
+          fnpack build
+          ls -lh ./*.fpk
+
+      - name: Upload fpk
+        uses: actions/upload-artifact@v4
+        with:
+          name: QwenPaw-${{ inputs.upstream_version }}-fnOS
+          path: ./*.fpk
+          retention-days: 30
+          if-no-files-found: error
