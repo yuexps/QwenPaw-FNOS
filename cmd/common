@@ -17,6 +17,7 @@ QWENPAW_PORT="${qwenpaw_webui_port}"
 
 # 环境变量
 export HOME="${TRIM_PKGVAR}/data"
+export QWENPAW_WORKING_DIR="${TRIM_PKGVAR}/data"
 export PYTHONPATH="${QWENPAW_SRC}:${PYTHONPATH}"
 export PIP_CACHE_DIR="${TRIM_PKGVAR}/.pip_cache"
 export QWENPAW_AUTH_ENABLED=true
@@ -236,9 +237,14 @@ install_callback() {
     "${pip}" config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple/
     "${pip}" config set global.extra-index-url https://mirrors.aliyun.com/pypi/simple/
 
-    # 安装项目并同步依赖
-    log_msg "正在安装项目并同步依赖..."
-    "${pip}" install --default-timeout=30 --retries 3 -e "${QWENPAW_SRC}" \
+    # 2.3.0 的 setup.py 带 build_py 钩子，需要较新的 setuptools（官方 Dockerfile pin <82）
+    log_msg "升级 pip / setuptools / wheel ..."
+    "${pip}" install --upgrade --default-timeout=30 --retries 3 \
+        "pip>=24" "setuptools>=68,<82" wheel >> "${LOG_FILE}" 2>&1
+
+    # 2.3.0 起频道依赖拆到 [channels] extra，不加会丢失钉钉/飞书/微信/TG/Discord
+    log_msg "正在安装项目并同步依赖（channels extra）..."
+    "${pip}" install --default-timeout=30 --retries 3 -e "${QWENPAW_SRC}[channels]" \
         >> "${LOG_FILE}" 2>&1
 
     if [ $? -ne 0 ]; then
@@ -304,6 +310,35 @@ upgrade_init() {
 # 升级后回调
 upgrade_callback() {
     log_msg "执行升级后的处理工作..."
+
+    # venv 位于 TRIM_PKGVAR（数据区），fpk 升级只替换 app/ 目录。
+    # 2.3.0 新增 PyJWT / filelock / markdown-it-py，并变更 reme-* / agentscope
+    # 约束，不在这里重装依赖，升级后启动必然 ImportError 或版本冲突。
+    local pip="${QWENPAW_VENV}/bin/pip"
+    if [ ! -x "${pip}" ]; then
+        err_msg "Python 虚拟环境不存在，无法完成依赖升级（请卸载时选择保留数据后重装）"
+        return 1
+    fi
+
+    "${pip}" config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple/ >> "${LOG_FILE}" 2>&1
+    "${pip}" config set global.extra-index-url https://mirrors.aliyun.com/pypi/simple/ >> "${LOG_FILE}" 2>&1
+    "${pip}" install --upgrade --default-timeout=30 --retries 3 \
+        "pip>=24" "setuptools>=68,<82" wheel >> "${LOG_FILE}" 2>&1
+
+    log_msg "重新安装 QwenPaw 依赖（channels extra）..."
+    "${pip}" install --default-timeout=30 --retries 3 -e "${QWENPAW_SRC}[channels]" \
+        >> "${LOG_FILE}" 2>&1
+    if [ $? -ne 0 ]; then
+        err_msg "依赖升级失败，请查看日志: ${LOG_FILE}"
+        return 1
+    fi
+
+    # app/ 被整体替换，重建共享目录里的日志软链
+    mkdir -p "/var/apps/qwenpaw_yuexps/shares/qwenpaw_yuexps"
+    ln -sf "${LOG_FILE}" "/var/apps/qwenpaw_yuexps/shares/qwenpaw_yuexps/info.log" >> "${LOG_FILE}" 2>&1
+    ln -sf "${GATEWAY_LOG_FILE}" "/var/apps/qwenpaw_yuexps/shares/qwenpaw_yuexps/fngateway.log" >> "${LOG_FILE}" 2>&1
+
+    log_msg "依赖升级完成"
     return 0
 }
 
