@@ -30,6 +30,16 @@ HTML_ATTR_RE = re.compile(r'(?i)\b(src|href|action|poster)\s*=\s*(["\'])(/[^"\']
 JS_ROUTE_RE = re.compile(
     rb'function\s+([a-zA-Z0-9_$]+)\s*\(\s*([a-zA-Z0-9_$]+)\s*\)\s*\{\s*return\s*/\^\\/([a-zA-Z0-9_-]+)\(\?:\\/\|\$\)/\.test\(\s*\2\s*\)\s*\?\s*([a-zA-Z0-9_$]+)\s*:\s*(?:void 0|undefined)\s*\}'
 )
+# QwenPaw 2.3.0 把上面的 basename 判定改写成了无正则的等值比较：
+#   function or(e){return Ri&&(e===Ri||e.startsWith(`${Ri}/`))?Ri:void 0}
+# 其中 Ri 是构建期常量 "/console"。旧正则在这里匹配不到，导致前端拿到
+# 带网关前缀的 pathname 时 or() 返回 void 0、Md() 原样返回该前缀，
+# fy()/dP() 等页面判定全部落空，iframe 里只剩空白（HTTP 仍全是 200）。
+JS_ROUTE_RE_230 = re.compile(
+    rb'function\s+([a-zA-Z0-9_$]+)\s*\(\s*([a-zA-Z0-9_$]+)\s*\)\s*\{\s*'
+    rb'return\s+([a-zA-Z0-9_$]+)\s*&&\s*\(\s*\2\s*===\s*\3\s*\|\|\s*'
+    rb'\2\.startsWith\(`\$\{\3\}/`\)\s*\)\s*\?\s*\3\s*:\s*void 0\s*\}'
+)
 CHUNK_SIZE = 64 * 1024
 
 
@@ -549,8 +559,24 @@ class FnGatewayHandler(BaseHTTPRequestHandler):
                         f'({arg}.startsWith(p)?p+{val}:{val}):({arg}.startsWith(p)?p:void 0)}}'
                     ).encode("utf-8")
 
-                if not content_encoding and JS_ROUTE_RE.search(resp_body):
-                    resp_body = JS_ROUTE_RE.sub(patch_route, resp_body)
+                def patch_route_230(m):
+                    """把 2.3.0 的 or(e) 改造成能识别网关前缀的形式。"""
+                    fn = m.group(1).decode("utf-8")
+                    arg = m.group(2).decode("utf-8")
+                    base = m.group(3).decode("utf-8")
+                    return (
+                        f'function {fn}({arg}){{const p="{prefix}";'
+                        f'const s={arg}.startsWith(p)?{arg}.slice(p.length)||"/":{arg};'
+                        f'return {base}&&(s==={base}||s.startsWith(`${{{base}}}/`))?'
+                        f'({arg}.startsWith(p)?p+{base}:{base}):'
+                        f'({arg}.startsWith(p)?p:void 0)}}'
+                    ).encode("utf-8")
+
+                if not content_encoding:
+                    if JS_ROUTE_RE.search(resp_body):
+                        resp_body = JS_ROUTE_RE.sub(patch_route, resp_body)
+                    if JS_ROUTE_RE_230.search(resp_body):
+                        resp_body = JS_ROUTE_RE_230.sub(patch_route_230, resp_body)
 
                 filtered_headers = []
                 for k, v in out_headers:
