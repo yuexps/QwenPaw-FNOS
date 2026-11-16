@@ -30,16 +30,21 @@ HTML_ATTR_RE = re.compile(r'(?i)\b(src|href|action|poster)\s*=\s*(["\'])(/[^"\']
 JS_ROUTE_RE = re.compile(
     rb'function\s+([a-zA-Z0-9_$]+)\s*\(\s*([a-zA-Z0-9_$]+)\s*\)\s*\{\s*return\s*/\^\\/([a-zA-Z0-9_-]+)\(\?:\\/\|\$\)/\.test\(\s*\2\s*\)\s*\?\s*([a-zA-Z0-9_$]+)\s*:\s*(?:void 0|undefined)\s*\}'
 )
-# QwenPaw 2.3.0 把上面的 basename 判定改写成了无正则的等值比较：
+# QwenPaw 2.3.0 起 basename 判定改为等值比较：
 #   function or(e){return Ri&&(e===Ri||e.startsWith(`${Ri}/`))?Ri:void 0}
-# 其中 Ri 是构建期常量 "/console"。旧正则在这里匹配不到，导致前端拿到
-# 带网关前缀的 pathname 时 or() 返回 void 0、Md() 原样返回该前缀，
-# fy()/dP() 等页面判定全部落空，iframe 里只剩空白（HTTP 仍全是 200）。
+# 旧正则匹配不到，前端拿到带网关前缀的 pathname 时判定落空，iframe 空白。
 JS_ROUTE_RE_230 = re.compile(
     rb'function\s+([a-zA-Z0-9_$]+)\s*\(\s*([a-zA-Z0-9_$]+)\s*\)\s*\{\s*'
     rb'return\s+([a-zA-Z0-9_$]+)\s*&&\s*\(\s*\2\s*===\s*\3\s*\|\|\s*'
-    rb'\2\.startsWith\(`\$\{\3\}/`\)\s*\)\s*\?\s*\3\s*:\s*void 0\s*\}'
+    rb'\2\.startsWith\(\s*`\$\{\3\}/`\s*\)\s*\)\s*\?\s*\3\s*:\s*void 0\s*\}'
 )
+# 路由判定宽松探测，改写未命中时告警
+JS_ROUTE_PROBE = re.compile(
+    rb'(?:\w+|["\'][^"\']*["\'])\s*&&\s*\(\s*\w+\s*===?\s*'
+    rb'(?:\w+|["\'][^"\']*["\'])\s*\|\|\s*\w+\.startsWith\(\s*'
+    rb'(?:`\$\{\w+\}/`|`/[^`]*`|["\']/[^"\']*["\'])'
+)
+_WARNED_ROUTE_PATHS = set()
 CHUNK_SIZE = 64 * 1024
 
 
@@ -573,10 +578,21 @@ class FnGatewayHandler(BaseHTTPRequestHandler):
                     ).encode("utf-8")
 
                 if not content_encoding:
-                    if JS_ROUTE_RE.search(resp_body):
+                    is_legacy_matched = bool(JS_ROUTE_RE.search(resp_body))
+                    if is_legacy_matched:
                         resp_body = JS_ROUTE_RE.sub(patch_route, resp_body)
                     if JS_ROUTE_RE_230.search(resp_body):
                         resp_body = JS_ROUTE_RE_230.sub(patch_route_230, resp_body)
+                    elif (
+                        not is_legacy_matched
+                        and JS_ROUTE_PROBE.search(resp_body)
+                        and b"console" in resp_body.lower()
+                    ):
+                        if req_path not in _WARNED_ROUTE_PATHS:
+                            _WARNED_ROUTE_PATHS.add(req_path)
+                            logger.warning(
+                                f"未识别到已知路由判定形态，网关前缀适配可能失效: {req_path}"
+                            )
 
                 filtered_headers = []
                 for k, v in out_headers:
