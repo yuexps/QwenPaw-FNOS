@@ -77,14 +77,18 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: 24
+          # 对齐上游 .nvmrc
+          node-version: '22.23.4'
           cache: 'npm'
           cache-dependency-path: temp/QwenPaw-*/console/package-lock.json
 
       - name: Build frontend console
+        env:
+          # 前端构建期 basename，须与网关前缀一致
+          VITE_CONSOLE_BASENAME: /app/qwenpaw_yuexps
         run: |
           cd temp/QwenPaw-*/console
-          npm ci
+          npm ci --include=dev
           npm run build
 
       - name: Copy console dist to src
@@ -96,14 +100,17 @@ jobs:
 
       - name: Copy src to /app/server
         run: |
-          rm -rf app/server/src
-          mkdir -p app/server/src
+          rm -rf app/server
+          mkdir -p app/server
           cp -r temp/QwenPaw-*/src app/server/
           cp -r temp/QwenPaw-*/packages app/server/
           cp -r temp/QwenPaw-*/plugins app/server/
+          # setup.py build_py 钩子依赖 scripts/
+          cp -r temp/QwenPaw-*/scripts app/server/
           cp -f temp/QwenPaw-*/README.md app/server/
           cp -f temp/QwenPaw-*/pyproject.toml app/server/
           cp -f temp/QwenPaw-*/setup.py app/server/
+          cp -f temp/QwenPaw-*/MANIFEST.in app/server/
 
       - name: Update manifest
         id: manifest
