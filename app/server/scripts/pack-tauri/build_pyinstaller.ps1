@@ -1,0 +1,339 @@
+# Build QwenPaw backend with PyInstaller for Tauri sidecar (Windows)
+# Creates an onedir backend bundle with embedded Python runtime
+#
+# Usage:
+#   powershell ./scripts/pack-tauri/build_pyinstaller.ps1
+#
+# Prerequisites:
+#   - Python 3.10+ on PATH (used only to bootstrap the bundled runtime)
+#   - PyInstaller 6.0+ (will be installed if not present)
+
+param()
+
+$ErrorActionPreference = "Stop"
+$REPO_ROOT = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+Set-Location $REPO_ROOT
+
+$DIST = if ($env:DIST) { $env:DIST } else { "dist" }
+if (-not [System.IO.Path]::IsPathRooted($DIST)) {
+    $DIST = Join-Path $REPO_ROOT $DIST
+}
+$BINARIES_DIR = Join-Path $REPO_ROOT "console\src-tauri\binaries"
+$PYTHON_RUNTIME_DIR = Join-Path $BINARIES_DIR "python-runtime"
+$RUNTIME_PYTHON_DIR = Join-Path $PYTHON_RUNTIME_DIR "python"
+$NATIVE_HOST_PYTHON = Join-Path $RUNTIME_PYTHON_DIR "python.exe"
+$BUILD_VENV = Join-Path $DIST "pyinstaller-venv"
+$PYTHON_BIN = Join-Path $BUILD_VENV "Scripts\python.exe"
+$VERSION_FILE = "src\qwenpaw\__version__.py"
+
+# Extract version
+if (Test-Path $VERSION_FILE) {
+    $content = Get-Content $VERSION_FILE -Raw
+    if ($content -match '__version__\s*=\s*"([^"]+)"') {
+        $VERSION = $Matches[1]
+    } else {
+        throw "Failed to extract version from $VERSION_FILE"
+    }
+} else {
+    throw "Version file not found: $VERSION_FILE"
+}
+
+Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host "QwenPaw PyInstaller Build - Windows" -ForegroundColor Cyan
+Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host "Version: $VERSION"
+Write-Host "Repository: $REPO_ROOT"
+Write-Host ""
+
+# Check prerequisites
+Write-Host "== Checking prerequisites ==" -ForegroundColor Yellow
+
+function Assert-LastExit {
+    param([string]$Message)
+    if ($LASTEXITCODE -ne 0) { throw $Message }
+}
+
+$UV_BIN = (Get-Command uv -ErrorAction SilentlyContinue).Source
+$BOOTSTRAP_PYTHON = (Get-Command python -ErrorAction SilentlyContinue).Source
+if (-not $BOOTSTRAP_PYTHON -or -not (Test-Path $BOOTSTRAP_PYTHON)) {
+    throw "Python not found on PATH; it is required to stage the bundled runtime"
+}
+
+New-Item -ItemType Directory -Force -Path $BINARIES_DIR | Out-Null
+# Check an existing uv before it downloads build dependencies.
+if ($UV_BIN) {
+    $uvVersion = & $UV_BIN --version
+    Assert-LastExit "Failed to read uv version"
+    if ($uvVersion -notmatch '^uv (\d+\.\d+\.\d+)(?:\s|$)' -or
+        [version]$Matches[1] -lt [version]"0.13.4") {
+        throw "uv >= 0.13.4 is required; update uv and retry"
+    }
+}
+
+# The staged python-build-standalone runtime is the canonical source for both
+# the helper interpreter and the PyInstaller build environment. The PATH
+# Python only selects the X.Y version to download and runs the staging script.
+Write-Host "== Staging canonical Python runtime ==" -ForegroundColor Yellow
+& $BOOTSTRAP_PYTHON `
+    (Join-Path $REPO_ROOT "scripts\pack-tauri\stage_python_runtime.py") `
+    --dest $PYTHON_RUNTIME_DIR
+Assert-LastExit "Failed to stage bundled Python runtime"
+if (-not (Test-Path $NATIVE_HOST_PYTHON -PathType Leaf)) {
+    throw "Bundled Python interpreter not found at $NATIVE_HOST_PYTHON"
+}
+
+Write-Host "== Creating PyInstaller build environment ==" -ForegroundColor Yellow
+& $NATIVE_HOST_PYTHON -m pip install --upgrade "pip>=26.2.2"
+Assert-LastExit "Failed to upgrade pip"
+& $NATIVE_HOST_PYTHON -m pip install --upgrade "certifi>=2026.10.19"
+Assert-LastExit "Failed to secure bundled Python"
+& $NATIVE_HOST_PYTHON -m venv --clear $BUILD_VENV
+Assert-LastExit "Failed to create PyInstaller environment from bundled Python"
+& $PYTHON_BIN -m pip install --upgrade "pip>=26.2.2"
+Assert-LastExit "Failed to upgrade pip"
+& $PYTHON_BIN -m pip install --upgrade "certifi>=2026.10.19"
+Assert-LastExit "Failed to secure PyInstaller environment"
+
+$pythonVersion = & $PYTHON_BIN --version
+Write-Host "Python: $pythonVersion" -ForegroundColor Green
+Write-Host ""
+
+function Test-PythonImport {
+    param([string]$Statement)
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & $PYTHON_BIN -c $Statement *> $null
+        return $LASTEXITCODE -eq 0
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+}
+
+function Install-PythonPackages {
+    param([string[]]$Packages)
+    if ($UV_BIN) {
+        & $UV_BIN pip install --python $PYTHON_BIN @Packages
+    } else {
+        & $PYTHON_BIN -m pip install @Packages
+    }
+    Assert-LastExit "Failed to install Python packages: $($Packages -join ', ')"
+}
+
+function Uninstall-PythonPackage {
+    param([string]$Package)
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        if ($UV_BIN) {
+            & $UV_BIN pip uninstall --python $PYTHON_BIN -y $Package *> $null
+        } else {
+            & $PYTHON_BIN -m pip uninstall -y $Package *> $null
+        }
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+}
+
+# Install PyInstaller if not present
+Write-Host "== Installing PyInstaller ==" -ForegroundColor Yellow
+if (Test-PythonImport "import PyInstaller") {
+    Write-Host "PyInstaller already installed" -ForegroundColor Green
+} else {
+    Write-Host "Installing PyInstaller..."
+    Install-PythonPackages -Packages @("pyinstaller>=6.0.0")
+    Write-Host "PyInstaller installed" -ForegroundColor Green
+}
+
+# Install python-dotenv if not present (required by PyInstaller collect_submodules)
+if (Test-PythonImport "import dotenv") {
+    Write-Host "python-dotenv already installed" -ForegroundColor Green
+} else {
+    Write-Host "Installing python-dotenv..."
+    Install-PythonPackages -Packages @("python-dotenv")
+    Write-Host "python-dotenv installed" -ForegroundColor Green
+}
+
+Write-Host ""
+
+# Install project dependencies (ensures ALL runtime deps are importable)
+Write-Host "== Preparing desktop dependency wheels ==" -ForegroundColor Yellow
+$DESKTOP_WHEELS = Join-Path $DIST "desktop-wheels"
+if (Test-Path $DESKTOP_WHEELS) { Remove-Item -Recurse -Force $DESKTOP_WHEELS }
+New-Item -ItemType Directory -Force -Path $DESKTOP_WHEELS | Out-Null
+# Pin setuptools <82: lark-oapi still calls pkg_resources.declare_namespace
+# at import time. A *fresh* install of setuptools >= 82 removes pkg_resources
+# wholesale, so lark-oapi's except-ImportError fallback (pkgutil.extend_path)
+# kicks in and the import works. The proven failure mode is an *in-place*
+# upgrade of a legacy setuptools (seen on the macOS CI runners, and possible
+# in any environment upgrading an existing install): it can leave a
+# half-removed pkg_resources (module present, declare_namespace gone), which
+# raises an AttributeError the fallback does not catch — crashing the Feishu
+# channel. The pin keeps every environment in the known-good state.
+# Reuse published wheels; build source-only dependencies once for both the
+# frozen host and readable runtime, using the canonical Python ABI.
+& $PYTHON_BIN -m pip wheel --prefer-binary --wheel-dir $DESKTOP_WHEELS `
+    ".[full]" "setuptools<82" wheel `
+    -r (Join-Path $REPO_ROOT "scripts\pack-tauri\native-host-requirements.txt")
+Assert-LastExit "Desktop dependency wheel build failed"
+$HOST_WHEELS = @(Get-ChildItem $DESKTOP_WHEELS -Filter "qwenpaw-*.whl")
+if ($HOST_WHEELS.Count -ne 1) { throw "Expected one host wheel" }
+$HOST_WHEEL = $HOST_WHEELS[0].FullName
+
+Write-Host "== Installing project dependencies ==" -ForegroundColor Yellow
+Install-PythonPackages -Packages @(
+    "--no-index", "--only-binary=:all:", "--find-links", $DESKTOP_WHEELS,
+    "${HOST_WHEEL}[full]", "setuptools<82", "wheel"
+)
+Write-Host "Project dependencies installed with full extras" -ForegroundColor Green
+
+# Fix agent-client-protocol namespace collision
+# PyPI has an empty 'acp' stub that shadows the real package
+if (-not (Test-PythonImport "from acp import Agent")) {
+    Write-Host "Fixing agent-client-protocol namespace..."
+    Uninstall-PythonPackage "acp"
+    Install-PythonPackages -Packages @(
+        "--no-index", "--only-binary=:all:", "--find-links", $DESKTOP_WHEELS,
+        "--force-reinstall", "--no-deps", "agent-client-protocol>=0.9.0,<0.11.0"
+    )
+    Write-Host "agent-client-protocol installed" -ForegroundColor Green
+}
+
+# Run PyInstaller
+Write-Host "== Running PyInstaller ==" -ForegroundColor Yellow
+Write-Host "Building onedir backend bundle..."
+
+$SPEC_FILE = Join-Path $REPO_ROOT "scripts\pack-tauri\qwenpaw.spec"
+if (-not (Test-Path $SPEC_FILE)) {
+    Write-Host "ERROR: Spec file not found at $SPEC_FILE" -ForegroundColor Red
+    exit 1
+}
+
+& $PYTHON_BIN -m PyInstaller $SPEC_FILE `
+    --distpath "${DIST}\pyinstaller" `
+    --workpath "${DIST}\pyinstaller-build" `
+    --clean `
+    --noconfirm
+
+if ($LASTEXITCODE -ne 0) {
+    throw "PyInstaller build failed"
+}
+
+Write-Host "PyInstaller build complete" -ForegroundColor Green
+Write-Host ""
+
+# Verify output
+$BACKEND_DIR = Join-Path $DIST "pyinstaller\qwenpaw-backend"
+$BACKEND_EXE = Join-Path $BACKEND_DIR "qwenpaw-backend.exe"
+$CLI_EXE = Join-Path $BACKEND_DIR "qwenpaw.exe"
+if (-not (Test-Path $BACKEND_DIR)) {
+    Write-Host "ERROR: Backend bundle directory not found at $BACKEND_DIR" -ForegroundColor Red
+    exit 1
+}
+if (-not (Test-Path $BACKEND_EXE)) {
+    Write-Host "ERROR: Backend executable not found at $BACKEND_EXE" -ForegroundColor Red
+    exit 1
+}
+if (-not (Test-Path $CLI_EXE)) {
+    Write-Host "ERROR: CLI executable not found at $CLI_EXE" -ForegroundColor Red
+    exit 1
+}
+& $PYTHON_BIN `
+    (Join-Path $PSScriptRoot "verify_model_catalog.py") `
+    (Join-Path $BACKEND_DIR "_internal\qwenpaw\providers\data")
+Assert-LastExit "Model catalog verification failed"
+
+Write-Host "Backend bundle created: $BACKEND_DIR" -ForegroundColor Green
+
+# Get size
+$bundleSize = (Get-ChildItem $BACKEND_DIR -Recurse -File | Measure-Object -Property Length -Sum).Sum / 1MB
+Write-Host "Bundle size: $([math]::Round($bundleSize, 2)) MB"
+Write-Host ""
+
+# Copy to Tauri resources directory
+Write-Host "== Copying to Tauri binaries directory ==" -ForegroundColor Yellow
+$DEST = Join-Path $BINARIES_DIR "qwenpaw-backend"
+New-Item -ItemType Directory -Force -Path $DEST | Out-Null
+Get-ChildItem -LiteralPath $DEST -Force | Remove-Item -Recurse -Force
+Copy-Item -Recurse -Force (Join-Path $BACKEND_DIR "*") $DEST
+Write-Host "Copied to: $DEST" -ForegroundColor Green
+Write-Host ""
+
+# The Chrome Native Messaging host runs under this standalone interpreter,
+# outside the PyInstaller backend, so its dependencies must be installed here.
+Write-Host "== Installing bundled Python helper dependencies ==" -ForegroundColor Yellow
+$NATIVE_HOST_REQUIREMENTS = Join-Path $REPO_ROOT "scripts\pack-tauri\native-host-requirements.txt"
+& $NATIVE_HOST_PYTHON -m pip install `
+    --disable-pip-version-check `
+    --no-input `
+    --no-deps `
+    --no-index `
+    --find-links $DESKTOP_WHEELS `
+    --only-binary=:all: `
+    -r $NATIVE_HOST_REQUIREMENTS
+Assert-LastExit "Failed to install Chrome Native Messaging host dependencies"
+& $NATIVE_HOST_PYTHON `
+    (Join-Path $REPO_ROOT "plugins\bundle\chrome\assets\scripts\nm_host.py") `
+    --check-runtime
+Assert-LastExit "Bundled Python runtime cannot run the Native Messaging host"
+Write-Host ""
+
+Write-Host "== Building readable channel runtime ==" -ForegroundColor Yellow
+& $PYTHON_BIN (Join-Path $REPO_ROOT "scripts/pack/validate_channel_contracts.py") --project-root $REPO_ROOT
+Assert-LastExit "Official channel contract validation failed"
+$CHANNEL_WHEELS = Join-Path $DIST "channel-wheels"
+$CHANNEL_RUNTIME = Join-Path $BINARIES_DIR "channel-runtime"
+foreach ($generated in @($CHANNEL_WHEELS, $CHANNEL_RUNTIME)) {
+    if (Test-Path $generated) { Remove-Item -Recurse -Force $generated }
+}
+New-Item -ItemType Directory -Force -Path $CHANNEL_WHEELS | Out-Null
+# Select only channel dependencies from the shared pool with the target
+# interpreter; full-only extras must not enlarge the readable runtime.
+& $NATIVE_HOST_PYTHON -m pip download --no-index --only-binary=:all: `
+    --find-links $DESKTOP_WHEELS `
+    --dest $CHANNEL_WHEELS "${HOST_WHEEL}[channels]"
+Assert-LastExit "Channel wheel resolution failed"
+$RUNTIME_RELEASE = (Get-Content (Join-Path $PYTHON_RUNTIME_DIR ".python-runtime-version") -Raw).Trim()
+& $PYTHON_BIN (Join-Path $PSScriptRoot "stage_channel_runtime.py") `
+    --python $NATIVE_HOST_PYTHON --wheel $HOST_WHEEL `
+    --resource-dir (Join-Path $REPO_ROOT "console\src-tauri") `
+    --wheelhouse $CHANNEL_WHEELS --python-runtime-release $RUNTIME_RELEASE
+Assert-LastExit "Readable channel runtime staging failed"
+
+Write-Host "== Staging bundled Node runtime ==" -ForegroundColor Yellow
+& $PYTHON_BIN (Join-Path $REPO_ROOT "scripts\pack-tauri\stage_node_runtime.py") `
+    --dest (Join-Path $BINARIES_DIR "node-runtime")
+Assert-LastExit "Failed to stage bundled Node runtime"
+Write-Host "== Building Computer Use helper ==" -ForegroundColor Yellow
+$CARGO_BIN = (Get-Command cargo -ErrorAction SilentlyContinue).Source
+if (-not $CARGO_BIN) {
+    throw "cargo not found; Rust toolchain is required to build qwenpaw-computer-use-helper"
+}
+$TAURI_DIR = Join-Path $REPO_ROOT "console\src-tauri"
+Push-Location $TAURI_DIR
+try {
+    & $CARGO_BIN build --release --bin qwenpaw-computer-use-helper
+    Assert-LastExit "Failed to build qwenpaw-computer-use-helper"
+} finally {
+    Pop-Location
+}
+$TARGET_DIR = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { Join-Path $TAURI_DIR "target" }
+if (-not [System.IO.Path]::IsPathRooted($TARGET_DIR)) {
+    $TARGET_DIR = Join-Path $TAURI_DIR $TARGET_DIR
+}
+$COMPUTER_USE_HELPER_EXE = Join-Path $TARGET_DIR "release\qwenpaw-computer-use-helper.exe"
+if (-not (Test-Path $COMPUTER_USE_HELPER_EXE)) {
+    throw "Computer Use helper executable not found at $COMPUTER_USE_HELPER_EXE"
+}
+$COMPUTER_USE_HELPER_DEST = Join-Path $DEST "qwenpaw-computer-use-helper.exe"
+Copy-Item -Force $COMPUTER_USE_HELPER_EXE $COMPUTER_USE_HELPER_DEST
+Write-Host "Computer Use helper staged: $COMPUTER_USE_HELPER_DEST" -ForegroundColor Green
+Write-Host ""
+
+Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host "PyInstaller Build Complete!" -ForegroundColor Green
+Write-Host "=========================================" -ForegroundColor Cyan
+Write-Host "Output:"
+Write-Host "  Bundle: $BACKEND_DIR"
+Write-Host "  Tauri resource: $DEST"
+Write-Host ""
