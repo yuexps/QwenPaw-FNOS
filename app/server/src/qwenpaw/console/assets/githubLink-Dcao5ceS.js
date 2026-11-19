@@ -1,0 +1,1 @@
+const n=/^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i;function r(t){return n.test(t.trim())}function o(t){const i=t.trim().match(n);return i?`https://github.com/${i[1]}/${i[2]}`:""}export{r as isGithubRepoLink,o as normalizeGithubLink};

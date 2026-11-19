@@ -1,0 +1,1 @@
+import{j as s}from"./react-vendor-XpTlWkwQ.js";import{B as l}from"./index-AQZugIm6.js";function d({message:t,error:i,onRetry:o,className:n,textClassName:a,errorColor:r,retryLabel:e}){return s.jsxs("div",{className:n,children:[s.jsx("span",{className:a,style:{color:i?r:void 0},children:t}),i&&o&&s.jsx(l,{onClick:o,style:{marginTop:12},children:e})]})}export{d as L};

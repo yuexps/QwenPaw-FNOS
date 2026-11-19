@@ -1,1 +1,0 @@
-import{j as o}from"./react-vendor-C7R1xVLQ.js";import{J as n}from"./index-BbtSwJul.js";import{dy as e}from"./ui-vendor-DcZ1XwCl.js";function m(r){const t=n();return t?o.jsx(e,{getContainer:()=>t,rootStyle:{position:"absolute"},...r}):o.jsx(e,{...r})}export{m as O};
